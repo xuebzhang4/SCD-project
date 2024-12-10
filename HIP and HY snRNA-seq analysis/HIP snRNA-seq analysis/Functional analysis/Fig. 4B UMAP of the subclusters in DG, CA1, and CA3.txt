@@ -1,0 +1,88 @@
+for(cls in c("NEU2","NEU3","NEU4")){
+  temp_obj <- subset(sub_scobj, idents = cls)
+  
+  DefaultAssay(temp_obj) <- "RNA"
+  # Find top 3000 variable genes for PCA and UMAP
+  temp_obj <- FindVariableFeatures(temp_obj, selection.method = "vst", nfeatures = 3000)
+  
+  # As we used SCT to integrate data, the scale is not necessary.
+  temp_obj <- ScaleData(temp_obj)
+  # Run PCA by setting the max number of PC of 50
+  temp_obj <- RunPCA(temp_obj, npcs = 30, features = VariableFeatures(object = temp_obj))
+  
+  #temp_obj <- ScoreJackStraw(temp_obj, dims = 1:20)
+  
+  pdf(file = paste0("./sub_neuron/01.",cls,"_ElbowPlot.pdf"),width =5,height = 4)
+  print(ElbowPlot(temp_obj,ndims = 30))
+  dev.off()
+  
+  # We chose 12 PCs by reviewing Elbow Plot.
+  afPC=9
+  
+  # Trying different resolution to determine the best one
+  temp_obj <- FindNeighbors(temp_obj, dims = 1:afPC, reduction = "pca")
+  for (res in c(0.01, 0.05, 0.1, 0.2, 0.3, 0.5,0.8,1,1.2,1.5,2,2.5,3)) {
+    temp_obj <- FindClusters(temp_obj, graph.name = "RNA_snn", resolution = res, algorithm = 1)}
+  apply(temp_obj@meta.data[,grep("integrated_snn_res",colnames(temp_obj@meta.data))],2,table)
+  
+  p2_tree <- clustree(temp_obj@meta.data, prefix = "integrated_snn_res.")
+  pdf(file = paste0("./sub_neuron/01.",cls,"_clustertree.pdf"),width =12,height =10)
+  print(p2_tree)
+  dev.off()
+  
+  temp_obj=FindNeighbors(temp_obj, dims = 1:afPC, reduction = "pca")
+  temp_obj <- FindClusters(temp_obj, resolution = 0.1) 
+  
+  ## Plotting UMAP
+  temp_obj <- RunUMAP(temp_obj, dims = 1:afPC, reduction = "pca")
+  saveRDS(temp_obj,file =  paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  #temp_obj <- readRDS(paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  # 
+  # ann.ids <- c(
+  #   'NEU1', #cls 0
+  #   'NEU2', #1
+  #   'NEU3', #2
+  #   'NEU4', #3
+  #   'NEU5' #4
+  # )
+  Idents(temp_obj) <- "seurat_clusters"
+  temp_obj@meta.data[['cellType']] <- paste0(cls,"_",temp_obj@meta.data[['seurat_clusters']])
+  Idents(temp_obj) <- 'cellType'
+  # Idents(temp_obj) <- plyr::mapvalues(Idents(temp_obj), from = levels(Idents(temp_obj)), to = ann.ids)
+  # temp_obj$cellType=Idents(temp_obj)
+  
+  df <- data.frame(cellType = factor(temp_obj@meta.data[,c('cellType')]),#,levels = ann.ids),
+                   temp_obj@reductions$umap@cell.embeddings[,1:2])
+  
+  p3 <- 
+    ggplot(df,aes(x= umap_1 , y = umap_2 ,col=cellType)) + 
+    geom_point(size = 0.2, shape=16)+
+    scale_color_manual("",values = c("#83B4FF","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0","#C80036"))+
+    theme(panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),
+          panel.background = element_blank(),
+          legend.title = element_blank(),
+          legend.key=element_rect(fill='white'),
+          legend.text = element_text(size=15), 
+          legend.key.size=unit(0.6,'cm'),
+          axis.title = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank())+
+    guides(color = guide_legend(override.aes = list(size=6)))+
+    geom_segment(aes(x = min(umap_1) , y = min(umap_2),xend = min(umap_1)+3, yend = min(umap_2)),
+                 colour = "black", size=0.5,
+                 arrow = arrow(length = unit(0.2,"cm"), 
+                               type = "closed"))+
+    geom_segment(aes(x = min(umap_1), y = min(umap_2),xend = min(umap_1),yend = min(umap_2)+1.5),
+                 colour = "black", size=0.5,arrow = arrow(length = unit(0.2,"cm"), 
+                                                          type = "closed")) +
+    annotate("text", x = min(df$umap_1) +1.4, y = min(df$umap_2) -0.3, label = "UMAP1",
+             color="black",size = 5) + 
+    annotate("text", x = min(df$umap_1) -0.8, y = min(df$umap_2) + 0.8, label = "UMAP2",
+             color="black",size = 5,angle=90)
+  
+  pdf(file =  paste0("./sub_neuron/02.",cls,"_UMAP.pdf"),width =6.5,height = 5.5)
+  print(p3)
+  dev.off()
+}
+

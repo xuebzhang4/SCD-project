@@ -1,0 +1,112 @@
+ann.ids <- c(
+  'Neurons', #cls 1
+  'Neurons', #2
+  'Neurons', #3
+  'Neurons', #4
+  'Neurons', #5
+  'Astrocytes', #6 
+  'Oligodendrocytes', #7
+  'Oligodendrocytes', #8
+  'Neurons', #9
+  'Neurons', #10
+  'Neurons', #11
+  'Neurons', #12
+  'Neurons', #13
+  'Microglia', #14
+  'Ependymal cells', #15
+  'OPCs', #16
+  'Neurons', #17
+  'Oligodendrocytes', #18
+  'Neurons', #19
+  'Microglia' #20
+)
+Idents(SD.combined) <- plyr::mapvalues(Idents(SD.combined), from = levels(Idents(SD.combined)), to = ann.ids)
+SD.combined$cellType=Idents(SD.combined)
+
+Cls_Viz_Path <- "./Results/Y_0709"
+
+#===============================================================================
+#                        Ordered UMAP
+#===============================================================================
+SD.combined$new_num <- as.numeric(as.character(SD.combined$seurat_clusters))+1
+SD.combined$new_num_cls <- factor(SD.combined$new_num, levels = c(min(SD.combined$new_num):max(SD.combined$new_num)))
+SD.combined$ordered_type <- paste0(SD.combined$cellType," (",SD.combined$new_num,")")
+SD.combined$ordered_type <- factor(SD.combined$ordered_type, levels = rev(
+  c(grep("Neurons",unique(SD.combined$ordered_type), value = T),
+    grep("Astrocytes",unique(SD.combined$ordered_type), value = T),
+    grep("Oligodendrocytes",unique(SD.combined$ordered_type), value = T),
+    grep("Microglia",unique(SD.combined$ordered_type), value = T),
+    grep("OPCs",unique(SD.combined$ordered_type), value = T),
+    grep("Ependymal cells",unique(SD.combined$ordered_type), value = T))
+))
+Idents(SD.combined) <- "ordered_type"
+
+
+df <- data.frame(Original_cluster = SD.combined@meta.data[,'new_num_cls'],
+                 subtype = paste0(SD.combined$new_num_cls, " ",SD.combined$cellType),
+                 SD.combined@reductions$umap@cell.embeddings[,1:2])
+
+my36colors <-c("#374E55FF", "#DF8F44FF", "#00A1D5FF", "#B24745FF", "#79AF97FF", "#6A6599FF" ,"#80796BFF",'#E64B35FF', '#4DBBD5FF',"#374E55FF", '#E59CC4', '#AB3282', '#23452F', '#BD956A', '#8C549C', '#585658', '#9FA3A8', '#E0D4CA', '#5F3D69', '#C5DEBA', '#58A4C3', '#E4C755', '#F7F398', '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B', '#712820', '#DCC1DD', '#CCE0F5',  '#CCC9E6', '#625D9E', '#68A180', '#3A6963', '#968175')#颜色设置
+
+cell_type_med <- df %>%
+  group_by(Original_cluster) %>%
+  summarise(
+    UMAP_1 = median(UMAP_1),
+    UMAP_2 = median(UMAP_2)
+  )
+
+p3 <-
+  ggplot(df,aes(x= UMAP_1 , y = UMAP_2 ,col=Original_cluster)) +
+  geom_point(size = 0.2, shape=16)+
+  #scale_color_manual("",values = my36colors)+
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.background = element_blank(),
+        legend.title = element_blank(),
+        legend.key=element_rect(fill='white'),
+        legend.text = element_text(size=15),
+        legend.key.size=unit(0.6,'cm'),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())+
+  guides(color = guide_legend(override.aes = list(size=6)))+
+  geom_segment(aes(x = min(UMAP_1) , y = min(UMAP_2),xend = min(UMAP_1)+3, yend = min(UMAP_2)),
+               colour = "black", size=0.5,
+               arrow = arrow(length = unit(0.2,"cm"),
+                             type = "closed"))+
+  geom_segment(aes(x = min(UMAP_1), y = min(UMAP_2),xend = min(UMAP_1),yend = min(UMAP_2)+1.5),
+               colour = "black", size=0.5,arrow = arrow(length = unit(0.2,"cm"),
+                                                        type = "closed")) +
+  annotate("text", x = min(df$UMAP_1) +1.4, y = min(df$UMAP_2) -0.3, label = "UMAP1",
+           color="black",size = 5) +
+  annotate("text", x = min(df$UMAP_1) -0.8, y = min(df$UMAP_2) + 0.8, label = "UMAP2",
+           color="black",size = 5,angle=90)+
+  #ggnewscale::new_scale_color()+
+  ggrepel::geom_text_repel(aes(label=Original_cluster),color="black", fontface="bold",data = cell_type_med,
+                           point.padding=unit(0.5, "lines"))+
+  theme(legend.position = "none")
+
+
+#scale_color_manual(values = c("#3ABEF9","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0","#C80036"))
+
+
+
+p <- ggscplot(object = SD.combined) +
+  geom_scPoint2(aes(color = new_num_cls,
+                    cluster = cellType,
+                    cluster_anno = new_num_cls),
+                show.legend = F,
+                add_label = F,
+                add_legend = T,
+                lgd_x = 1.2,ncol = 2) +
+  theme_sc(r = 0.35)
+
+p_lgd <- ggpubr::get_legend(p) %>% ggpubr::as_ggplot()
+
+pdf(paste0(Cls_Viz_Path,"/overall_Y_umap_row_cluster0729_legend.pdf"), width = 10, height = 8)
+print(p)
+dev.off()
+pdf(paste0(Cls_Viz_Path,"/overall_Y_umap_row_cluster0729_main.pdf"), width = 8, height = 8)
+print(p3)
+dev.off()
+

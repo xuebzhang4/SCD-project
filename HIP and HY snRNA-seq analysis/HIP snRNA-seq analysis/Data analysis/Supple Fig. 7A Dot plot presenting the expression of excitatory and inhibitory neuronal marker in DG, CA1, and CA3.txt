@@ -1,0 +1,198 @@
+#NEU2
+cls = "NEU2"
+{
+  temp_obj <- readRDS(paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  temp_obj@meta.data[['cellType']] <- paste0(cls,"_",(as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1))
+  temp_obj@meta.data[['cellType']] <- factor(temp_obj@meta.data[['cellType']],levels = c(
+    "NEU2_1",  "NEU2_2",  "NEU2_3",  "NEU2_4"
+  ))
+  Idents(temp_obj) <- 'cellType'
+  
+  #complex dot plot------
+  
+  dot_input <- do_DotPlot(sample = temp_obj,features =my_geneset,dot.scale = 3,colors.use = c("#62CDFF","#FF7BA9"),
+                          legend.length = 10, font.size =, dot_border = F, plot.grid = T) %>% 
+    {.$data} %>% {.[['face']] <- "main";.}
+
+  dot_p <- ggplot(dot_input, aes(x = id, y = features.plot))+geom_point(aes(size=pct.exp, fill=avg.exp.scaled),shape=21)+
+    scale_fill_gradientn(colors = c("white","white","orange","red"), name = "Avg.exp")+
+    scale_size(range = c(2,10),limit = c(0.001,100))+
+    facet_grid(facets = .~face, scales = "free",space = "free")+
+    theme_bw()+
+    theme( 
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      #axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+      axis.text.x = element_blank(),
+      axis.ticks = element_blank(),
+      legend.position = "right",
+      panel.grid = element_line(color = "darkgray"),
+      panel.border = element_rect(fill = NA),
+      strip.background = element_blank(),
+      strip.text = element_blank(),
+      axis.ticks.length.x = unit(0, "mm"))
+  
+  my_anno <-
+    ggplot(data.frame(x_ = factor(levels(temp_obj$cellType), levels = levels(temp_obj$cellType)), y_ = 1, celltype = factor(levels(temp_obj$cellType), levels = levels(temp_obj$cellType))#, 
+                      # face = c(rep("main", length(levels(obj@meta.data[["my_celltype"]]))),
+                      #          rep("sub",length(levels(obj@meta.data[[subdot_grp]]))))
+    ), 
+    aes(x_, y_, fill=celltype))+
+    geom_tile()+
+    scale_fill_manual(values = c("#3ABEF9","#9CDBA6","#F9D689","#973131","#FF6969","#C80036","#FFD0D0"), name='Cell type')+
+    theme(panel.background = element_blank(),
+          panel.grid = element_blank(),
+          text=element_text(),
+          axis.text = element_blank(),
+          legend.position = "bottom",
+          axis.title =element_blank(),
+          panel.border = element_blank(),
+          strip.background = element_blank(),
+          strip.text = element_blank(),
+          legend.key.size = unit(0.25, 'cm'),
+          axis.ticks = element_blank())+
+    scale_y_continuous(expand = c(0,0))
+  
+  p_list2 <- list()
+  p_list2[['my_dot']] <- dot_p
+  p_list2[['my_annn']] <- my_anno
+  p_list2[['nrow']] = length(p_list2)
+  p_list2[['heights']] = c(1,0.01)
+  final_dot <- do.call(deeptime::ggarrange2,p_list2)
+  pdf(file = paste0("./sub_neuron/04.",cls,"_biomarker_complex_dot_plot.pdf"),width =4.5,height =7)
+  print(final_dot)
+  dev.off()
+  #--------------
+}
+#NEU3
+cls = "NEU3"
+{
+  temp_obj <- readRDS(paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  temp_obj@meta.data[['cellType']] <- paste0(cls,"_",(as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1))
+  temp_obj@meta.data[['cellType']] <- factor(temp_obj@meta.data[['cellType']],levels = c(
+    "NEU3_1",  "NEU3_2",  "NEU3_3",  "NEU3_4",  "NEU3_5"
+  ))
+  Idents(temp_obj) <- 'cellType'
+  
+  #complex dot plot------
+  
+  dot_input <- do_DotPlot(sample = temp_obj,features =my_geneset,dot.scale = 3,colors.use = c("#62CDFF","#FF7BA9"),
+                          legend.length = 10, font.size =, dot_border = F, plot.grid = T) %>% 
+    {.$data} %>% {.[['face']] <- "main";.}
+  
+  dot_p <- ggplot(dot_input, aes(x = id, y = features.plot))+geom_point(aes(size=pct.exp, fill=avg.exp.scaled),shape=21)+
+    scale_fill_gradientn(colors = c("white","white","orange","red"), name = "Avg.exp")+
+    scale_size(range = c(2,10),limit = c(0.001,100))+
+    facet_grid(facets = .~face, scales = "free",space = "free")+
+    theme_bw()+
+    theme( 
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      #axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+      axis.text.x = element_blank(),
+      axis.ticks = element_blank(),
+      legend.position = "right",
+      panel.grid = element_line(color = "darkgray"),
+      panel.border = element_rect(fill = NA),
+      strip.background = element_blank(),
+      strip.text = element_blank(),
+      axis.ticks.length.x = unit(0, "mm"))
+  
+  my_anno <-
+    ggplot(data.frame(x_ = factor(levels(temp_obj$cellType), levels = levels(temp_obj$cellType)), y_ = 1, celltype = factor(levels(temp_obj$cellType), levels = levels(temp_obj$cellType))#, 
+                      # face = c(rep("main", length(levels(obj@meta.data[["my_celltype"]]))),
+                      #          rep("sub",length(levels(obj@meta.data[[subdot_grp]]))))
+    ), 
+    aes(x_, y_, fill=celltype))+
+    geom_tile()+
+    scale_fill_manual(values = c("#3ABEF9","#9CDBA6","#F9D689","#973131","#FF6969","#C80036","#FFD0D0"), name='Cell type')+
+    theme(panel.background = element_blank(),
+          panel.grid = element_blank(),
+          text=element_text(),
+          axis.text = element_blank(),
+          legend.position = "bottom",
+          axis.title =element_blank(),
+          panel.border = element_blank(),
+          strip.background = element_blank(),
+          strip.text = element_blank(),
+          legend.key.size = unit(0.25, 'cm'),
+          axis.ticks = element_blank())+
+    scale_y_continuous(expand = c(0,0))
+  
+  p_list2 <- list()
+  p_list2[['my_dot']] <- dot_p
+  p_list2[['my_annn']] <- my_anno
+  p_list2[['nrow']] = length(p_list2)
+  p_list2[['heights']] = c(1,0.01)
+  final_dot <- do.call(deeptime::ggarrange2,p_list2)
+  pdf(file = paste0("./sub_neuron/04.",cls,"_biomarker_complex_dot_plot.pdf"),width =4.5,height =7)
+  print(final_dot)
+  dev.off()
+  #--------------
+}
+#NEU4
+cls = "NEU4"
+{
+  temp_obj <- readRDS(paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  temp_obj@meta.data[['cellType']] <- paste0(cls,"_",(as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1))
+  temp_obj@meta.data[['cellType']] <- factor(temp_obj@meta.data[['cellType']],levels = c(
+    "NEU4_1",  "NEU4_2",  "NEU4_3",  "NEU4_4",  "NEU4_5"
+  ))
+  Idents(temp_obj) <- 'cellType'
+  
+  #complex dot plot------
+  
+  dot_input <- do_DotPlot(sample = temp_obj,features =my_geneset,dot.scale = 3,colors.use = c("#62CDFF","#FF7BA9"),
+                          legend.length = 10, font.size =, dot_border = F, plot.grid = T) %>% 
+    {.$data} %>% {.[['face']] <- "main";.}
+  
+  dot_p <- ggplot(dot_input, aes(x = id, y = features.plot))+geom_point(aes(size=pct.exp, fill=avg.exp.scaled),shape=21)+
+    scale_fill_gradientn(colors = c("white","white","orange","red"), name = "Avg.exp")+
+    scale_size(range = c(2,10),limit = c(0.001,100))+
+    facet_grid(facets = .~face, scales = "free",space = "free")+
+    theme_bw()+
+    theme( 
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      #axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+      axis.text.x = element_blank(),
+      axis.ticks = element_blank(),
+      legend.position = "right",
+      panel.grid = element_line(color = "darkgray"),
+      panel.border = element_rect(fill = NA),
+      strip.background = element_blank(),
+      strip.text = element_blank(),
+      axis.ticks.length.x = unit(0, "mm"))
+  
+  my_anno <-
+    ggplot(data.frame(x_ = factor(levels(temp_obj$cellType), levels = levels(temp_obj$cellType)), y_ = 1, celltype = factor(levels(temp_obj$cellType), levels = levels(temp_obj$cellType))#, 
+                      # face = c(rep("main", length(levels(obj@meta.data[["my_celltype"]]))),
+                      #          rep("sub",length(levels(obj@meta.data[[subdot_grp]]))))
+    ), 
+    aes(x_, y_, fill=celltype))+
+    geom_tile()+
+    scale_fill_manual(values = c("#3ABEF9","#9CDBA6","#F9D689","#973131","#FF6969","#C80036","#FFD0D0"), name='Cell type')+
+    theme(panel.background = element_blank(),
+          panel.grid = element_blank(),
+          text=element_text(),
+          axis.text = element_blank(),
+          legend.position = "bottom",
+          axis.title =element_blank(),
+          panel.border = element_blank(),
+          strip.background = element_blank(),
+          strip.text = element_blank(),
+          legend.key.size = unit(0.25, 'cm'),
+          axis.ticks = element_blank())+
+    scale_y_continuous(expand = c(0,0))
+  
+  p_list2 <- list()
+  p_list2[['my_dot']] <- dot_p
+  p_list2[['my_annn']] <- my_anno
+  p_list2[['nrow']] = length(p_list2)
+  p_list2[['heights']] = c(1,0.01)
+  final_dot <- do.call(deeptime::ggarrange2,p_list2)
+  pdf(file = paste0("./sub_neuron/04.",cls,"_biomarker_complex_dot_plot.pdf"),width =4.5,height =7)
+  print(final_dot)
+  dev.off()
+  #--------------
+}

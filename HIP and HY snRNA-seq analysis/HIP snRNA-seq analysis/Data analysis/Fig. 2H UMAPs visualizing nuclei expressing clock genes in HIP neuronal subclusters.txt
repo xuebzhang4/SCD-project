@@ -1,0 +1,15 @@
+tgt_gene = c("Arntl","Clock","Npas2","Per1","Per2","Cry1",
+             "Cry2","Nr1d1","Nr1d2","Rora")
+chunks <- split(unlist(tgt_gene), cut(seq_along(unlist(tgt_gene)), ceiling(length(unlist(tgt_gene))/4) , labels= FALSE ))
+for(i in names(chunks)){
+  p <- plot_density_cluster(obj=sub_scobj, #scRNA-seq seurat object
+                            marker=chunks[[i]],
+                            alpha = 0.05, # transparent
+                            dim = "UMAP", #could be UMAP or TSNE
+                            size =0.001,  #Size of dot
+                            ncol = 2, #number of columns
+                            cols = c('lightgray',rev(viridisLite::viridis(n=10))[-c(1:2)]))# select color to map
+  pdf(paste0("2.1.",i,"_tgt_density_umap.pdf"), width = 8, height = 8)
+  print(p)
+  dev.off()
+}
