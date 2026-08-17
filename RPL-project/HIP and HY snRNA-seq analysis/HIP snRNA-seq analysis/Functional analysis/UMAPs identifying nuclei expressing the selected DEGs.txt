@@ -1,0 +1,1529 @@
+rank_lst <- list()
+for(cls in c("NEU2","NEU3","NEU4")){
+  temp1 <- fread(paste0("./sub_neuron/03.",cls,"_ALL_path_DEG_Excitatory_NS_CT18vsCT6.csv")) %>% 
+    dplyr::filter(avg_log2FC > 0)
+  temp2 <- fread(paste0("./sub_neuron/03.",cls,"_ALL_path_DEG_Excitatory_SD_CT18vsCT6.csv")) %>%
+    dplyr::select(gene,avg_log2FC) %>%
+    rename(SD_LogFC = avg_log2FC)
+  rank_lst[[cls]] <- left_join(temp1,temp2,by = "gene") %>%
+    dplyr::arrange(desc(avg_log2FC),abs(SD_LogFC))
+  fwrite(rank_lst[[cls]],paste0("./sub_neuron/sub_neuron_0818_intersected_GO_DEG/04.",cls,"_Rank_1128.csv"))
+  
+  
+}
+
+#NEU2
+cls = "NEU2"
+{
+  temp_obj <- readRDS(paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  temp_obj@meta.data[['cellType']] <- paste0(cls,"_",(as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1))
+  temp_obj@meta.data[['cellType']] <- factor(temp_obj@meta.data[['cellType']],levels = c(
+    "NEU2_1",  "NEU2_2",  "NEU2_3",  "NEU2_4"
+  ))
+  Idents(temp_obj) <- 'cellType'
+  
+  ann.ids <- c(
+    'Excitatory', #cls 0
+    'Inhibitory', #1
+    'Excitatory', #2
+    'Excitatory'
+  )
+  
+  
+  temp_obj@meta.data[['seurat_clusters_2']] <- as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1
+  Idents(temp_obj) <- 'seurat_clusters_2'
+  
+  Idents(temp_obj) <- 'seurat_clusters'
+  Idents(temp_obj) <- plyr::mapvalues(Idents(temp_obj), from = levels(Idents(temp_obj)), to = ann.ids)
+  temp_obj$cellType=Idents(temp_obj)
+
+  tgt_gene <- fread(paste0("./sub_neuron/sub_neuron_0818_intersected_GO_DEG/04.",cls,"_Rank_1128.csv"), header = T, sep = ",")[['gene']] %>%
+    {.[1:50]}
+  
+  plot_density_cluster_grp <- function(obj,#Seurat object
+                                       marker,#markers to show
+                                       dim=c("TSNE","UMAP"),
+                                       size,#size of dots
+                                       ncol=NULL,#n of cols
+                                       group = NULL,
+                                       alpha=0.2, #alpha
+                                       cols=NULL # colors to map 
+  ){
+    require(ggplot2)
+    require(ggrastr)
+    require(Seurat)
+    
+    if(is.null(cols)){
+      cold <- colorRampPalette(c('#f7fcf0','#41b6c4','#253494'))
+      warm <- colorRampPalette(c('#ffffb2','#fecc5c','#e31a1c'))
+      mypalette <- c(rev(cold(11)), warm(10))
+    }else{mypalette <- cols}
+    
+    
+    if(dim=="TSNE"){
+      
+      xtitle = "tSNE1"
+      ytitle = "tSNE2"
+      
+    }
+    
+    if(dim=="UMAP"){
+      
+      xtitle = "UMAP1"
+      ytitle = "UMAP2"
+    }
+    
+    
+    if(length(marker)==0){
+      
+      plot <- FeaturePlot(obj, features = marker, reduction = ifelse(dim == "UMAP"),"umap","tsne")
+      data <- plot$data
+      
+      
+      if(dim=="TSNE"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+        
+      }
+      
+      if(dim=="UMAP"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+      }
+      
+      #ggplot
+      p <- ggplot(data, aes(x, y)) +
+        geom_point_rast(shape = 21, stroke=0.25,#dotplot
+                        aes(colour=gene, 
+                            fill=gene), size = size, alpha = alpha) +#set colors
+        geom_density_2d(data=data[data$gene>0,], #density
+                        aes(x=x, y=y), 
+                        bins = 5, colour="black") +#
+        scale_fill_gradientn(colours = mypalette)+
+        scale_colour_gradientn(colours = mypalette)+#
+        theme_bw()+ggtitle(marker)+
+        labs(x=xtitle, y=ytitle)+
+        theme(
+          plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+          axis.text=element_text(size=8, colour = "black"),
+          axis.title=element_text(size=12),
+          legend.text = element_text(size =10),
+          legend.title=element_blank(),
+          aspect.ratio=1,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()
+        )
+      
+      return(p)
+      
+    }else{
+      
+      gene_list <- list()
+      
+      for (i in 1:length(marker)) {
+        plot <- FeaturePlot(obj, features = marker[i], reduction = ifelse(dim == "UMAP","umap","tsne"))
+        data <- plot$data
+        
+        
+        if(dim=="TSNE"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        
+        if(dim=="UMAP"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        data[['group']] <- obj@meta.data[[group]]
+        gene_list[[i]] <- data
+        
+      }
+      names(gene_list) <- marker
+      
+      plot_list <- list()
+      
+      
+      for (i in 1:length(marker)) {
+        dat_2 <- gene_list[[i]] %>% filter(gene > 0)
+        
+        p <- ggplot(gene_list[[i]], aes(x, y)) +
+          geom_point_rast(shape = 21, stroke=0.25,
+                          aes(colour=gene, 
+                              fill=gene), size = size) +
+          scale_fill_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          ggnewscale::new_scale_colour()+
+          ggnewscale::new_scale_fill()+
+          geom_point_rast(data = dat_2, shape = 21, stroke=0.25,
+                          aes(x = x, y = y, colour=gene, 
+                              fill=gene), size = size)+
+          scale_fill_gradientn(colours = mypalette, limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          geom_density_2d(data=gene_list[[i]][gene_list[[i]]$gene>0,], 
+                          aes(x=x, y=y), 
+                          bins = 5, colour="black")+
+          theme_bw()+ggtitle(marker[i])+
+          labs(x=xtitle, y=ytitle)+
+          theme(
+            plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+            axis.text=element_text(size=8, colour = "black"),
+            axis.title=element_text(size=12),
+            legend.text = element_text(size =10),
+            legend.title=element_blank(),
+            aspect.ratio=1,
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank()
+          )+
+          facet_wrap(~group, nrow = 2)
+        plot_list[[i]] <- p
+      }
+      
+      
+      Seurat::CombinePlots(plot_list, ncol = ncol)
+      
+      
+    }
+    
+    
+  }
+  
+  plot_density_cluster_grp_overlap <- function(obj,#Seurat object
+                                               marker,#markers to show
+                                               dim=c("TSNE","UMAP"),
+                                               size,#size of dots
+                                               ncol=NULL,#n of cols
+                                               group = NULL,
+                                               alpha=0.2, #alpha
+                                               cols=NULL # colors to map 
+  ){
+    require(ggplot2)
+    require(ggrastr)
+    require(Seurat)
+    
+    if(is.null(cols)){
+      cold <- colorRampPalette(c('#f7fcf0','#41b6c4','#253494'))
+      warm <- colorRampPalette(c('#ffffb2','#fecc5c','#e31a1c'))
+      mypalette <- c(rev(cold(11)), warm(10))
+    }else{mypalette <- cols}
+    
+    
+    if(dim=="TSNE"){
+      
+      xtitle = "tSNE1"
+      ytitle = "tSNE2"
+      
+    }
+    
+    if(dim=="UMAP"){
+      
+      xtitle = "UMAP1"
+      ytitle = "UMAP2"
+    }
+    
+    
+    if(length(marker)==0){
+      
+      plot <- FeaturePlot(obj, features = marker, reduction = ifelse(dim == "UMAP"),"umap","tsne")
+      data <- plot$data
+      
+      
+      if(dim=="TSNE"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+        
+      }
+      
+      if(dim=="UMAP"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+      }
+      
+      #ggplot
+      p <- ggplot(data, aes(x, y)) +
+        geom_point_rast(shape = 21, stroke=0.25,#dotplot
+                        aes(colour=gene, 
+                            fill=gene), size = size, alpha = alpha) +#set colors
+        geom_density_2d(data=data[data$gene>0,], #density
+                        aes(x=x, y=y), 
+                        bins = 5, colour="black") +#
+        scale_fill_gradientn(colours = mypalette)+
+        scale_colour_gradientn(colours = mypalette)+#
+        theme_bw()+ggtitle(marker)+
+        labs(x=xtitle, y=ytitle)+
+        theme(
+          plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+          axis.text=element_text(size=8, colour = "black"),
+          axis.title=element_text(size=12),
+          legend.text = element_text(size =10),
+          legend.title=element_blank(),
+          aspect.ratio=1,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()
+        )
+      
+      return(p)
+      
+    }else{
+      
+      gene_list <- list()
+      
+      for (i in 1:length(marker)) {
+        plot <- FeaturePlot(obj, features = marker[i], reduction = ifelse(dim == "UMAP","umap","tsne"))
+        data <- plot$data
+        
+        
+        if(dim=="TSNE"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        
+        if(dim=="UMAP"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        data[['group']] <- obj@meta.data[[group]]
+        gene_list[[i]] <- data
+        
+      }
+      names(gene_list) <- marker
+      
+      plot_list <- list()
+      
+      
+      for (i in 1:length(marker)) {
+        dat_2 <- gene_list[[i]] %>% filter(gene > 0)
+        
+        bg_dat <- lapply(unique(dat_2$group),function(gp){
+          gene_list[[i]] %>% mutate(group = gp)
+        }) %>% bind_rows()
+        p <- ggplot(gene_list[[i]], aes(x, y)) +
+          geom_point_rast(data = bg_dat, shape = 21, stroke=0.25,
+                          colour="lightgray", 
+                          fill="lightgray", size = size) +
+          geom_point_rast(shape = 21, stroke=0.25,
+                          aes(colour=gene, 
+                              fill=gene), size = size) +
+          scale_fill_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          ggnewscale::new_scale_colour()+
+          ggnewscale::new_scale_fill()+
+          geom_point_rast(data = dat_2, shape = 21, stroke=0.25,
+                          aes(x = x, y = y, colour=gene, 
+                              fill=gene), size = size)+
+          scale_fill_gradientn(colours = mypalette, limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          # geom_density_2d(data=gene_list[[i]][gene_list[[i]]$gene>0,], 
+          #                 aes(x=x, y=y), 
+          #                 bins = 5, colour="black")+
+          theme_bw()+ggtitle(marker[i])+
+          labs(x=xtitle, y=ytitle)+
+          theme(
+            plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+            axis.text=element_text(size=8, colour = "black"),
+            axis.title=element_text(size=12),
+            legend.text = element_text(size =10),
+            legend.title=element_blank(),
+            aspect.ratio=1,
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank()
+          )+
+          facet_wrap(~group, nrow = 2)
+        plot_list[[i]] <- p
+      }
+      
+      
+      Seurat::CombinePlots(plot_list, ncol = ncol)
+      
+      
+    }
+    
+    
+  }
+  
+  plot_density_cluster_grp_overlap2 <- function(obj,#Seurat object
+                                                marker,#markers to show
+                                                dim=c("TSNE","UMAP"),
+                                                size,#size of dots
+                                                ncol=NULL,#n of cols
+                                                group = NULL,
+                                                alpha=0.2, #alpha
+                                                cols=NULL # colors to map 
+  ){
+    require(ggplot2)
+    require(ggrastr)
+    require(Seurat)
+    
+    if(is.null(cols)){
+      cold <- colorRampPalette(c('#f7fcf0','#41b6c4','#253494'))
+      warm <- colorRampPalette(c('#ffffb2','#fecc5c','#e31a1c'))
+      mypalette <- c(rev(cold(11)), warm(10))
+    }else{mypalette <- cols}
+    
+    
+    if(dim=="TSNE"){
+      
+      xtitle = "tSNE1"
+      ytitle = "tSNE2"
+      
+    }
+    
+    if(dim=="UMAP"){
+      
+      xtitle = "UMAP1"
+      ytitle = "UMAP2"
+    }
+    
+    
+    if(length(marker)==0){
+      
+      plot <- FeaturePlot(obj, features = marker, reduction = ifelse(dim == "UMAP"),"umap","tsne")
+      data <- plot$data
+      
+      
+      if(dim=="TSNE"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+        
+      }
+      
+      if(dim=="UMAP"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+      }
+      
+      #ggplot
+      p <- ggplot(data, aes(x, y)) +
+        geom_point_rast(shape = 21, stroke=0.25,#dotplot
+                        aes(colour=gene, 
+                            fill=gene), size = size, alpha = alpha) +#set colors
+        geom_density_2d(data=data[data$gene>0,], #density
+                        aes(x=x, y=y), 
+                        bins = 5, colour="black") +#
+        scale_fill_gradientn(colours = mypalette)+
+        scale_colour_gradientn(colours = mypalette)+#
+        theme_bw()+ggtitle(marker)+
+        labs(x=xtitle, y=ytitle)+
+        theme(
+          plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+          axis.text=element_text(size=8, colour = "black"),
+          axis.title=element_text(size=12),
+          legend.text = element_text(size =10),
+          legend.title=element_blank(),
+          aspect.ratio=1,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()
+        )
+      
+      return(p)
+      
+    }else{
+      
+      gene_list <- list()
+      
+      for (i in 1:length(marker)) {
+        plot <- FeaturePlot(obj, features = marker[i], reduction = ifelse(dim == "UMAP","umap","tsne"))
+        data <- plot$data
+        
+        
+        if(dim=="TSNE"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        
+        if(dim=="UMAP"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        data[['group']] <- obj@meta.data[[group]]
+        gene_list[[i]] <- data
+        
+      }
+      names(gene_list) <- marker
+      
+      plot_list <- list()
+      
+      
+      for (i in 1:length(marker)) {
+        dat_2 <- gene_list[[i]] %>% filter(gene > 0)
+        
+        bg_dat <- lapply(unique(dat_2$group),function(gp){
+          gene_list[[i]] %>% mutate(group = gp)
+        }) %>% bind_rows()
+        p <- ggplot(gene_list[[i]], aes(x, y)) +
+          geom_point_rast(data = bg_dat, shape = 21, stroke=0.25,
+                          colour="lightgray", 
+                          fill="lightgray", size = size) +
+          geom_point_rast(shape = 21, stroke=0.25,
+                          aes(colour=gene, 
+                              fill=gene), size = size) +
+          scale_fill_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          ggnewscale::new_scale_colour()+
+          ggnewscale::new_scale_fill()+
+          geom_point_rast(data = dat_2, shape = 21, stroke=0.25,
+                          aes(x = x, y = y, colour=gene, 
+                              fill=gene), size = size)+
+          scale_fill_gradientn(colours = mypalette, limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          geom_density_2d(data=gene_list[[i]][gene_list[[i]]$gene>0,],
+                          aes(x=x, y=y),
+                          bins = 5, colour="black")+
+          theme_bw()+ggtitle(marker[i])+
+          labs(x=xtitle, y=ytitle)+
+          theme(
+            plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+            axis.text=element_text(size=8, colour = "black"),
+            axis.title=element_text(size=12),
+            legend.text = element_text(size =10),
+            legend.title=element_blank(),
+            aspect.ratio=1,
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank()
+          )+
+          facet_wrap(~group, nrow = 2)
+        plot_list[[i]] <- p
+      }
+      
+      
+      Seurat::CombinePlots(plot_list, ncol = ncol)
+      
+      
+    }
+    
+    
+  }
+  plist <- lapply(tgt_gene, function(mm){
+
+    plot_density_cluster_grp_overlap(obj=temp_obj, #scRNA-seq seurat object
+                             marker= mm,
+                             alpha = 0.05, # transparent
+                             dim = "UMAP", #could be UMAP or TSNE
+                             group = "sample_info",
+                             size =0.1,  #Size of dot
+                             ncol = 1, #number of columns
+                             cols = c('lightgray',rev(viridisLite::magma(n=10))[-c(1:2)])#c("lightgray","#A02334")
+
+    )
+
+  })
+
+  pdf(paste0("./sub_neuron/06.",cls,"_Top_GO_DEG_UMAP.pdf"), width = 6, height = 6)
+  for(i in 1:length(plist)){print(plist[[i]])}
+  dev.off()
+
+}
+
+#NEU3
+cls = "NEU3"
+{
+  temp_obj <- readRDS(paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  temp_obj@meta.data[['cellType']] <- paste0(cls,"_",(as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1))
+  temp_obj@meta.data[['cellType']] <- factor(temp_obj@meta.data[['cellType']],levels = c(
+    "NEU3_1",  "NEU3_2",  "NEU3_3",  "NEU3_4",  "NEU3_5"
+  ))
+  Idents(temp_obj) <- 'cellType'
+  
+  ann.ids <- c(
+    'Excitatory', #cls 0
+    'Excitatory', #1
+    'Excitatory', #2
+    'Excitatory',
+    'Inhibitory'
+  )
+  
+  
+  temp_obj@meta.data[['seurat_clusters_2']] <- as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1
+  Idents(temp_obj) <- 'seurat_clusters_2'
+  
+  Idents(temp_obj) <- 'seurat_clusters'
+  Idents(temp_obj) <- plyr::mapvalues(Idents(temp_obj), from = levels(Idents(temp_obj)), to = ann.ids)
+  temp_obj$cellType=Idents(temp_obj)
+  
+  tgt_gene <- fread(paste0("./sub_neuron/sub_neuron_0818_intersected_GO_DEG/04.",cls,"_Rank_1128.csv"), header = T, sep = ",")[['gene']] %>%
+    {.[1:50]}
+  
+  plot_density_cluster_grp <- function(obj,#Seurat object
+                                       marker,#markers to show
+                                       dim=c("TSNE","UMAP"),
+                                       size,#size of dots
+                                       ncol=NULL,#n of cols
+                                       group = NULL,
+                                       alpha=0.2, #alpha
+                                       cols=NULL # colors to map 
+  ){
+    require(ggplot2)
+    require(ggrastr)
+    require(Seurat)
+    
+    if(is.null(cols)){
+      cold <- colorRampPalette(c('#f7fcf0','#41b6c4','#253494'))
+      warm <- colorRampPalette(c('#ffffb2','#fecc5c','#e31a1c'))
+      mypalette <- c(rev(cold(11)), warm(10))
+    }else{mypalette <- cols}
+    
+    
+    if(dim=="TSNE"){
+      
+      xtitle = "tSNE1"
+      ytitle = "tSNE2"
+      
+    }
+    
+    if(dim=="UMAP"){
+      
+      xtitle = "UMAP1"
+      ytitle = "UMAP2"
+    }
+    
+    
+    if(length(marker)==0){
+      
+      plot <- FeaturePlot(obj, features = marker, reduction = ifelse(dim == "UMAP"),"umap","tsne")
+      data <- plot$data
+      
+      
+      if(dim=="TSNE"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+        
+      }
+      
+      if(dim=="UMAP"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+      }
+      
+      #ggplot作图
+      p <- ggplot(data, aes(x, y)) +
+        geom_point_rast(shape = 21, stroke=0.25,#dotplot
+                        aes(colour=gene, 
+                            fill=gene), size = size, alpha = alpha) +#set colors
+        geom_density_2d(data=data[data$gene>0,], #density
+                        aes(x=x, y=y), 
+                        bins = 5, colour="black") +#
+        scale_fill_gradientn(colours = mypalette)+
+        scale_colour_gradientn(colours = mypalette)+#
+        theme_bw()+ggtitle(marker)+
+        labs(x=xtitle, y=ytitle)+
+        theme(
+          plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+          axis.text=element_text(size=8, colour = "black"),
+          axis.title=element_text(size=12),
+          legend.text = element_text(size =10),
+          legend.title=element_blank(),
+          aspect.ratio=1,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()
+        )
+      
+      return(p)
+      
+    }else{
+      
+      gene_list <- list()
+      
+      for (i in 1:length(marker)) {
+        plot <- FeaturePlot(obj, features = marker[i], reduction = ifelse(dim == "UMAP","umap","tsne"))
+        data <- plot$data
+        
+        
+        if(dim=="TSNE"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        
+        if(dim=="UMAP"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        data[['group']] <- obj@meta.data[[group]]
+        gene_list[[i]] <- data
+        
+      }
+      names(gene_list) <- marker
+      
+      plot_list <- list()
+      
+      
+      for (i in 1:length(marker)) {
+        dat_2 <- gene_list[[i]] %>% filter(gene > 0)
+        
+        p <- ggplot(gene_list[[i]], aes(x, y)) +
+          geom_point_rast(shape = 21, stroke=0.25,
+                          aes(colour=gene, 
+                              fill=gene), size = size) +
+          scale_fill_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          ggnewscale::new_scale_colour()+
+          ggnewscale::new_scale_fill()+
+          geom_point_rast(data = dat_2, shape = 21, stroke=0.25,
+                          aes(x = x, y = y, colour=gene, 
+                              fill=gene), size = size)+
+          scale_fill_gradientn(colours = mypalette, limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          geom_density_2d(data=gene_list[[i]][gene_list[[i]]$gene>0,], 
+                          aes(x=x, y=y), 
+                          bins = 5, colour="black")+
+          theme_bw()+ggtitle(marker[i])+
+          labs(x=xtitle, y=ytitle)+
+          theme(
+            plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+            axis.text=element_text(size=8, colour = "black"),
+            axis.title=element_text(size=12),
+            legend.text = element_text(size =10),
+            legend.title=element_blank(),
+            aspect.ratio=1,
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank()
+          )+
+          facet_wrap(~group, nrow = 2)
+        plot_list[[i]] <- p
+      }
+      
+      
+      Seurat::CombinePlots(plot_list, ncol = ncol)
+      
+      
+    }
+    
+    
+  }
+  
+  plot_density_cluster_grp_overlap <- function(obj,#Seurat object
+                                               marker,#markers to show
+                                               dim=c("TSNE","UMAP"),
+                                               size,#size of dots
+                                               ncol=NULL,#n of cols
+                                               group = NULL,
+                                               alpha=0.2, #alpha
+                                               cols=NULL # colors to map 
+  ){
+    require(ggplot2)
+    require(ggrastr)
+    require(Seurat)
+    
+    if(is.null(cols)){
+      cold <- colorRampPalette(c('#f7fcf0','#41b6c4','#253494'))
+      warm <- colorRampPalette(c('#ffffb2','#fecc5c','#e31a1c'))
+      mypalette <- c(rev(cold(11)), warm(10))
+    }else{mypalette <- cols}
+    
+    
+    if(dim=="TSNE"){
+      
+      xtitle = "tSNE1"
+      ytitle = "tSNE2"
+      
+    }
+    
+    if(dim=="UMAP"){
+      
+      xtitle = "UMAP1"
+      ytitle = "UMAP2"
+    }
+    
+    
+    if(length(marker)==0){
+      
+      plot <- FeaturePlot(obj, features = marker, reduction = ifelse(dim == "UMAP"),"umap","tsne")
+      data <- plot$data
+      
+      
+      if(dim=="TSNE"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+        
+      }
+      
+      if(dim=="UMAP"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+      }
+      
+      #ggplot作图
+      p <- ggplot(data, aes(x, y)) +
+        geom_point_rast(shape = 21, stroke=0.25,#dotplot
+                        aes(colour=gene, 
+                            fill=gene), size = size, alpha = alpha) +#set colors
+        geom_density_2d(data=data[data$gene>0,], #density
+                        aes(x=x, y=y), 
+                        bins = 5, colour="black") +#
+        scale_fill_gradientn(colours = mypalette)+
+        scale_colour_gradientn(colours = mypalette)+#
+        theme_bw()+ggtitle(marker)+
+        labs(x=xtitle, y=ytitle)+
+        theme(
+          plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+          axis.text=element_text(size=8, colour = "black"),
+          axis.title=element_text(size=12),
+          legend.text = element_text(size =10),
+          legend.title=element_blank(),
+          aspect.ratio=1,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()
+        )
+      
+      return(p)
+      
+    }else{
+      
+      gene_list <- list()
+      
+      for (i in 1:length(marker)) {
+        plot <- FeaturePlot(obj, features = marker[i], reduction = ifelse(dim == "UMAP","umap","tsne"))
+        data <- plot$data
+        
+        
+        if(dim=="TSNE"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        
+        if(dim=="UMAP"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        data[['group']] <- obj@meta.data[[group]]
+        gene_list[[i]] <- data
+        
+      }
+      names(gene_list) <- marker
+      
+      plot_list <- list()
+      
+      
+      for (i in 1:length(marker)) {
+        dat_2 <- gene_list[[i]] %>% filter(gene > 0)
+        
+        bg_dat <- lapply(unique(dat_2$group),function(gp){
+          gene_list[[i]] %>% mutate(group = gp)
+        }) %>% bind_rows()
+        p <- ggplot(gene_list[[i]], aes(x, y)) +
+          geom_point_rast(data = bg_dat, shape = 21, stroke=0.25,
+                          colour="lightgray", 
+                          fill="lightgray", size = size) +
+          geom_point_rast(shape = 21, stroke=0.25,
+                          aes(colour=gene, 
+                              fill=gene), size = size) +
+          scale_fill_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          ggnewscale::new_scale_colour()+
+          ggnewscale::new_scale_fill()+
+          geom_point_rast(data = dat_2, shape = 21, stroke=0.25,
+                          aes(x = x, y = y, colour=gene, 
+                              fill=gene), size = size)+
+          scale_fill_gradientn(colours = mypalette, limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          # geom_density_2d(data=gene_list[[i]][gene_list[[i]]$gene>0,], 
+          #                 aes(x=x, y=y), 
+          #                 bins = 5, colour="black")+
+          theme_bw()+ggtitle(marker[i])+
+          labs(x=xtitle, y=ytitle)+
+          theme(
+            plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+            axis.text=element_text(size=8, colour = "black"),
+            axis.title=element_text(size=12),
+            legend.text = element_text(size =10),
+            legend.title=element_blank(),
+            aspect.ratio=1,
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank()
+          )+
+          facet_wrap(~group, nrow = 2)
+        plot_list[[i]] <- p
+      }
+      
+      
+      Seurat::CombinePlots(plot_list, ncol = ncol)
+      
+      
+    }
+    
+    
+  }
+  
+  plot_density_cluster_grp_overlap2 <- function(obj,#Seurat object
+                                                marker,#markers to show
+                                                dim=c("TSNE","UMAP"),
+                                                size,#size of dots
+                                                ncol=NULL,#n of cols
+                                                group = NULL,
+                                                alpha=0.2, #alpha
+                                                cols=NULL # colors to map 
+  ){
+    require(ggplot2)
+    require(ggrastr)
+    require(Seurat)
+    
+    if(is.null(cols)){
+      cold <- colorRampPalette(c('#f7fcf0','#41b6c4','#253494'))
+      warm <- colorRampPalette(c('#ffffb2','#fecc5c','#e31a1c'))
+      mypalette <- c(rev(cold(11)), warm(10))
+    }else{mypalette <- cols}
+    
+    
+    if(dim=="TSNE"){
+      
+      xtitle = "tSNE1"
+      ytitle = "tSNE2"
+      
+    }
+    
+    if(dim=="UMAP"){
+      
+      xtitle = "UMAP1"
+      ytitle = "UMAP2"
+    }
+    
+    
+    if(length(marker)==0){
+      
+      plot <- FeaturePlot(obj, features = marker, reduction = ifelse(dim == "UMAP"),"umap","tsne")
+      data <- plot$data
+      
+      
+      if(dim=="TSNE"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+        
+      }
+      
+      if(dim=="UMAP"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+      }
+      
+      #ggplot
+      p <- ggplot(data, aes(x, y)) +
+        geom_point_rast(shape = 21, stroke=0.25,#dotplot
+                        aes(colour=gene, 
+                            fill=gene), size = size, alpha = alpha) +#set colors
+        geom_density_2d(data=data[data$gene>0,], #density
+                        aes(x=x, y=y), 
+                        bins = 5, colour="black") +#
+        scale_fill_gradientn(colours = mypalette)+
+        scale_colour_gradientn(colours = mypalette)+#
+        theme_bw()+ggtitle(marker)+
+        labs(x=xtitle, y=ytitle)+
+        theme(
+          plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+          axis.text=element_text(size=8, colour = "black"),
+          axis.title=element_text(size=12),
+          legend.text = element_text(size =10),
+          legend.title=element_blank(),
+          aspect.ratio=1,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()
+        )
+      
+      return(p)
+      
+    }else{
+      
+      gene_list <- list()
+      
+      for (i in 1:length(marker)) {
+        plot <- FeaturePlot(obj, features = marker[i], reduction = ifelse(dim == "UMAP","umap","tsne"))
+        data <- plot$data
+        
+        
+        if(dim=="TSNE"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        
+        if(dim=="UMAP"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        data[['group']] <- obj@meta.data[[group]]
+        gene_list[[i]] <- data
+        
+      }
+      names(gene_list) <- marker
+      
+      plot_list <- list()
+      
+      
+      for (i in 1:length(marker)) {
+        dat_2 <- gene_list[[i]] %>% filter(gene > 0)
+        
+        bg_dat <- lapply(unique(dat_2$group),function(gp){
+          gene_list[[i]] %>% mutate(group = gp)
+        }) %>% bind_rows()
+        p <- ggplot(gene_list[[i]], aes(x, y)) +
+          geom_point_rast(data = bg_dat, shape = 21, stroke=0.25,
+                          colour="lightgray", 
+                          fill="lightgray", size = size) +
+          geom_point_rast(shape = 21, stroke=0.25,
+                          aes(colour=gene, 
+                              fill=gene), size = size) +
+          scale_fill_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          ggnewscale::new_scale_colour()+
+          ggnewscale::new_scale_fill()+
+          geom_point_rast(data = dat_2, shape = 21, stroke=0.25,
+                          aes(x = x, y = y, colour=gene, 
+                              fill=gene), size = size)+
+          scale_fill_gradientn(colours = mypalette, limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          geom_density_2d(data=gene_list[[i]][gene_list[[i]]$gene>0,],
+                          aes(x=x, y=y),
+                          bins = 5, colour="black")+
+          theme_bw()+ggtitle(marker[i])+
+          labs(x=xtitle, y=ytitle)+
+          theme(
+            plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+            axis.text=element_text(size=8, colour = "black"),
+            axis.title=element_text(size=12),
+            legend.text = element_text(size =10),
+            legend.title=element_blank(),
+            aspect.ratio=1,
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank()
+          )+
+          facet_wrap(~group, nrow = 2)
+        plot_list[[i]] <- p
+      }
+      
+      
+      Seurat::CombinePlots(plot_list, ncol = ncol)
+      
+      
+    }
+    
+    
+  }
+  plist <- lapply(tgt_gene, function(mm){
+
+    plot_density_cluster_grp_overlap(obj=temp_obj, #scRNA-seq seurat object
+                                     marker= mm,
+                                     alpha = 0.05, # transparent
+                                     dim = "UMAP", #could be UMAP or TSNE
+                                     group = "sample_info",
+                                     size =0.1,  #Size of dot
+                                     ncol = 1, #number of columns
+                                     cols = c('lightgray',rev(viridisLite::magma(n=10))[-c(1:2)])#c("lightgray","#A02334")
+
+    )
+
+  })
+
+  pdf(paste0("./sub_neuron/06.",cls,"_Top_GO_DEG_UMAP.pdf"), width = 6, height = 6)
+  for(i in 1:length(plist)){print(plist[[i]])}
+  dev.off()
+  
+
+}
+
+#NEU4
+cls = "NEU4"
+{
+  temp_obj <- readRDS(paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  temp_obj@meta.data[['cellType']] <- paste0(cls,"_",(as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1))
+  temp_obj@meta.data[['cellType']] <- factor(temp_obj@meta.data[['cellType']],levels = c(
+    "NEU4_1",  "NEU4_2",  "NEU4_3",  "NEU4_4",  "NEU4_5"
+  ))
+  Idents(temp_obj) <- 'cellType'
+  
+  ann.ids <- c(
+    'Excitatory', #cls 0
+    'Excitatory', #1
+    'Excitatory', #2
+    'Excitatory',
+    'Inhibitory'
+  )
+  
+  
+  temp_obj@meta.data[['seurat_clusters_2']] <- as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1
+  Idents(temp_obj) <- 'seurat_clusters_2'
+  
+  Idents(temp_obj) <- 'seurat_clusters'
+  Idents(temp_obj) <- plyr::mapvalues(Idents(temp_obj), from = levels(Idents(temp_obj)), to = ann.ids)
+  temp_obj$cellType=Idents(temp_obj)
+  
+  tgt_gene <- fread(paste0("./sub_neuron/sub_neuron_0818_intersected_GO_DEG/04.",cls,"_Rank_1128.csv"), header = T, sep = ",")[['gene']] %>%
+    {.[1:50]}
+  
+  plot_density_cluster_grp <- function(obj,#Seurat object
+                                       marker,#markers to show
+                                       dim=c("TSNE","UMAP"),
+                                       size,#size of dots
+                                       ncol=NULL,#n of cols
+                                       group = NULL,
+                                       alpha=0.2, #alpha
+                                       cols=NULL # colors to map 
+  ){
+    require(ggplot2)
+    require(ggrastr)
+    require(Seurat)
+    
+    if(is.null(cols)){
+      cold <- colorRampPalette(c('#f7fcf0','#41b6c4','#253494'))
+      warm <- colorRampPalette(c('#ffffb2','#fecc5c','#e31a1c'))
+      mypalette <- c(rev(cold(11)), warm(10))
+    }else{mypalette <- cols}
+    
+    
+    if(dim=="TSNE"){
+      
+      xtitle = "tSNE1"
+      ytitle = "tSNE2"
+      
+    }
+    
+    if(dim=="UMAP"){
+      
+      xtitle = "UMAP1"
+      ytitle = "UMAP2"
+    }
+    
+    
+    if(length(marker)==0){
+      
+      plot <- FeaturePlot(obj, features = marker, reduction = ifelse(dim == "UMAP"),"umap","tsne")
+      data <- plot$data
+      
+      
+      if(dim=="TSNE"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+        
+      }
+      
+      if(dim=="UMAP"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+      }
+      
+      #ggplot作图
+      p <- ggplot(data, aes(x, y)) +
+        geom_point_rast(shape = 21, stroke=0.25,#dotplot
+                        aes(colour=gene, 
+                            fill=gene), size = size, alpha = alpha) +#set colors
+        geom_density_2d(data=data[data$gene>0,], #density
+                        aes(x=x, y=y), 
+                        bins = 5, colour="black") +#
+        scale_fill_gradientn(colours = mypalette)+
+        scale_colour_gradientn(colours = mypalette)+#
+        theme_bw()+ggtitle(marker)+
+        labs(x=xtitle, y=ytitle)+
+        theme(
+          plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+          axis.text=element_text(size=8, colour = "black"),
+          axis.title=element_text(size=12),
+          legend.text = element_text(size =10),
+          legend.title=element_blank(),
+          aspect.ratio=1,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()
+        )
+      
+      return(p)
+      
+    }else{
+      
+      gene_list <- list()
+      
+      for (i in 1:length(marker)) {
+        plot <- FeaturePlot(obj, features = marker[i], reduction = ifelse(dim == "UMAP","umap","tsne"))
+        data <- plot$data
+        
+        
+        if(dim=="TSNE"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        
+        if(dim=="UMAP"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        data[['group']] <- obj@meta.data[[group]]
+        gene_list[[i]] <- data
+        
+      }
+      names(gene_list) <- marker
+      
+      plot_list <- list()
+      
+      
+      for (i in 1:length(marker)) {
+        dat_2 <- gene_list[[i]] %>% filter(gene > 0)
+        
+        p <- ggplot(gene_list[[i]], aes(x, y)) +
+          geom_point_rast(shape = 21, stroke=0.25,
+                          aes(colour=gene, 
+                              fill=gene), size = size) +
+          scale_fill_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          ggnewscale::new_scale_colour()+
+          ggnewscale::new_scale_fill()+
+          geom_point_rast(data = dat_2, shape = 21, stroke=0.25,
+                          aes(x = x, y = y, colour=gene, 
+                              fill=gene), size = size)+
+          scale_fill_gradientn(colours = mypalette, limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          geom_density_2d(data=gene_list[[i]][gene_list[[i]]$gene>0,], 
+                          aes(x=x, y=y), 
+                          bins = 5, colour="black")+
+          theme_bw()+ggtitle(marker[i])+
+          labs(x=xtitle, y=ytitle)+
+          theme(
+            plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+            axis.text=element_text(size=8, colour = "black"),
+            axis.title=element_text(size=12),
+            legend.text = element_text(size =10),
+            legend.title=element_blank(),
+            aspect.ratio=1,
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank()
+          )+
+          facet_wrap(~group, nrow = 2)
+        plot_list[[i]] <- p
+      }
+      
+      
+      Seurat::CombinePlots(plot_list, ncol = ncol)
+      
+      
+    }
+    
+    
+  }
+  
+  plot_density_cluster_grp_overlap <- function(obj,#Seurat object
+                                               marker,#markers to show
+                                               dim=c("TSNE","UMAP"),
+                                               size,#size of dots
+                                               ncol=NULL,#n of cols
+                                               group = NULL,
+                                               alpha=0.2, #alpha
+                                               cols=NULL # colors to map 
+  ){
+    require(ggplot2)
+    require(ggrastr)
+    require(Seurat)
+    
+    if(is.null(cols)){
+      cold <- colorRampPalette(c('#f7fcf0','#41b6c4','#253494'))
+      warm <- colorRampPalette(c('#ffffb2','#fecc5c','#e31a1c'))
+      mypalette <- c(rev(cold(11)), warm(10))
+    }else{mypalette <- cols}
+    
+    
+    if(dim=="TSNE"){
+      
+      xtitle = "tSNE1"
+      ytitle = "tSNE2"
+      
+    }
+    
+    if(dim=="UMAP"){
+      
+      xtitle = "UMAP1"
+      ytitle = "UMAP2"
+    }
+    
+    
+    if(length(marker)==0){
+      
+      plot <- FeaturePlot(obj, features = marker, reduction = ifelse(dim == "UMAP"),"umap","tsne")
+      data <- plot$data
+      
+      
+      if(dim=="TSNE"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+        
+      }
+      
+      if(dim=="UMAP"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+      }
+      
+      #ggplot
+      p <- ggplot(data, aes(x, y)) +
+        geom_point_rast(shape = 21, stroke=0.25,#dotplot
+                        aes(colour=gene, 
+                            fill=gene), size = size, alpha = alpha) +#set colors
+        geom_density_2d(data=data[data$gene>0,], #density
+                        aes(x=x, y=y), 
+                        bins = 5, colour="black") +#
+        scale_fill_gradientn(colours = mypalette)+
+        scale_colour_gradientn(colours = mypalette)+#
+        theme_bw()+ggtitle(marker)+
+        labs(x=xtitle, y=ytitle)+
+        theme(
+          plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+          axis.text=element_text(size=8, colour = "black"),
+          axis.title=element_text(size=12),
+          legend.text = element_text(size =10),
+          legend.title=element_blank(),
+          aspect.ratio=1,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()
+        )
+      
+      return(p)
+      
+    }else{
+      
+      gene_list <- list()
+      
+      for (i in 1:length(marker)) {
+        plot <- FeaturePlot(obj, features = marker[i], reduction = ifelse(dim == "UMAP","umap","tsne"))
+        data <- plot$data
+        
+        
+        if(dim=="TSNE"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        
+        if(dim=="UMAP"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        data[['group']] <- obj@meta.data[[group]]
+        gene_list[[i]] <- data
+        
+      }
+      names(gene_list) <- marker
+      
+      plot_list <- list()
+      
+      
+      for (i in 1:length(marker)) {
+        dat_2 <- gene_list[[i]] %>% filter(gene > 0)
+        
+        bg_dat <- lapply(unique(dat_2$group),function(gp){
+          gene_list[[i]] %>% mutate(group = gp)
+        }) %>% bind_rows()
+        p <- ggplot(gene_list[[i]], aes(x, y)) +
+          geom_point_rast(data = bg_dat, shape = 21, stroke=0.25,
+                          colour="lightgray", 
+                          fill="lightgray", size = size) +
+          geom_point_rast(shape = 21, stroke=0.25,
+                          aes(colour=gene, 
+                              fill=gene), size = size) +
+          scale_fill_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          ggnewscale::new_scale_colour()+
+          ggnewscale::new_scale_fill()+
+          geom_point_rast(data = dat_2, shape = 21, stroke=0.25,
+                          aes(x = x, y = y, colour=gene, 
+                              fill=gene), size = size)+
+          scale_fill_gradientn(colours = mypalette, limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          # geom_density_2d(data=gene_list[[i]][gene_list[[i]]$gene>0,], 
+          #                 aes(x=x, y=y), 
+          #                 bins = 5, colour="black")+
+          theme_bw()+ggtitle(marker[i])+
+          labs(x=xtitle, y=ytitle)+
+          theme(
+            plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+            axis.text=element_text(size=8, colour = "black"),
+            axis.title=element_text(size=12),
+            legend.text = element_text(size =10),
+            legend.title=element_blank(),
+            aspect.ratio=1,
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank()
+          )+
+          facet_wrap(~group, nrow = 2)
+        plot_list[[i]] <- p
+      }
+      
+      
+      Seurat::CombinePlots(plot_list, ncol = ncol)
+      
+      
+    }
+    
+    
+  }
+  
+  plot_density_cluster_grp_overlap2 <- function(obj,#Seurat object
+                                                marker,#markers to show
+                                                dim=c("TSNE","UMAP"),
+                                                size,#size of dots
+                                                ncol=NULL,#n of cols
+                                                group = NULL,
+                                                alpha=0.2, #alpha
+                                                cols=NULL # colors to map 
+  ){
+    require(ggplot2)
+    require(ggrastr)
+    require(Seurat)
+    
+    if(is.null(cols)){
+      cold <- colorRampPalette(c('#f7fcf0','#41b6c4','#253494'))
+      warm <- colorRampPalette(c('#ffffb2','#fecc5c','#e31a1c'))
+      mypalette <- c(rev(cold(11)), warm(10))
+    }else{mypalette <- cols}
+    
+    
+    if(dim=="TSNE"){
+      
+      xtitle = "tSNE1"
+      ytitle = "tSNE2"
+      
+    }
+    
+    if(dim=="UMAP"){
+      
+      xtitle = "UMAP1"
+      ytitle = "UMAP2"
+    }
+    
+    
+    if(length(marker)==0){
+      
+      plot <- FeaturePlot(obj, features = marker, reduction = ifelse(dim == "UMAP"),"umap","tsne")
+      data <- plot$data
+      
+      
+      if(dim=="TSNE"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+        
+      }
+      
+      if(dim=="UMAP"){
+        
+        colnames(data)<- c("x","y","ident","gene")
+      }
+      
+      #ggplot
+      p <- ggplot(data, aes(x, y)) +
+        geom_point_rast(shape = 21, stroke=0.25,#dotplot
+                        aes(colour=gene, 
+                            fill=gene), size = size, alpha = alpha) +#set colors
+        geom_density_2d(data=data[data$gene>0,], #density
+                        aes(x=x, y=y), 
+                        bins = 5, colour="black") +#
+        scale_fill_gradientn(colours = mypalette)+
+        scale_colour_gradientn(colours = mypalette)+#
+        theme_bw()+ggtitle(marker)+
+        labs(x=xtitle, y=ytitle)+
+        theme(
+          plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+          axis.text=element_text(size=8, colour = "black"),
+          axis.title=element_text(size=12),
+          legend.text = element_text(size =10),
+          legend.title=element_blank(),
+          aspect.ratio=1,
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank()
+        )
+      
+      return(p)
+      
+    }else{
+      
+      gene_list <- list()
+      
+      for (i in 1:length(marker)) {
+        plot <- FeaturePlot(obj, features = marker[i], reduction = ifelse(dim == "UMAP","umap","tsne"))
+        data <- plot$data
+        
+        
+        if(dim=="TSNE"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        
+        if(dim=="UMAP"){
+          
+          colnames(data)<- c("x","y","ident","gene")
+        }
+        data[['group']] <- obj@meta.data[[group]]
+        gene_list[[i]] <- data
+        
+      }
+      names(gene_list) <- marker
+      
+      plot_list <- list()
+      
+      
+      for (i in 1:length(marker)) {
+        dat_2 <- gene_list[[i]] %>% filter(gene > 0)
+        
+        bg_dat <- lapply(unique(dat_2$group),function(gp){
+          gene_list[[i]] %>% mutate(group = gp)
+        }) %>% bind_rows()
+        p <- ggplot(gene_list[[i]], aes(x, y)) +
+          geom_point_rast(data = bg_dat, shape = 21, stroke=0.25,
+                          colour="lightgray", 
+                          fill="lightgray", size = size) +
+          geom_point_rast(shape = 21, stroke=0.25,
+                          aes(colour=gene, 
+                              fill=gene), size = size) +
+          scale_fill_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])))+
+          ggnewscale::new_scale_colour()+
+          ggnewscale::new_scale_fill()+
+          geom_point_rast(data = dat_2, shape = 21, stroke=0.25,
+                          aes(x = x, y = y, colour=gene, 
+                              fill=gene), size = size)+
+          scale_fill_gradientn(colours = mypalette, limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          scale_colour_gradientn(colours = mypalette,limits = c(0, max(dat_2[['gene']])), guide = "none")+
+          geom_density_2d(data=gene_list[[i]][gene_list[[i]]$gene>0,],
+                          aes(x=x, y=y),
+                          bins = 5, colour="black")+
+          theme_bw()+ggtitle(marker[i])+
+          labs(x=xtitle, y=ytitle)+
+          theme(
+            plot.title = element_text(size=12, face="bold.italic", hjust = 0),
+            axis.text=element_text(size=8, colour = "black"),
+            axis.title=element_text(size=12),
+            legend.text = element_text(size =10),
+            legend.title=element_blank(),
+            aspect.ratio=1,
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank()
+          )+
+          facet_wrap(~group, nrow = 2)
+        plot_list[[i]] <- p
+      }
+      
+      
+      Seurat::CombinePlots(plot_list, ncol = ncol)
+      
+      
+    }
+    
+    
+  }
+  plist <- lapply(tgt_gene, function(mm){
+
+    plot_density_cluster_grp_overlap(obj=temp_obj, #scRNA-seq seurat object
+                                     marker= mm,
+                                     alpha = 0.05, # transparent
+                                     dim = "UMAP", #could be UMAP or TSNE
+                                     group = "sample_info",
+                                     size =0.1,  #Size of dot
+                                     ncol = 1, #number of columns
+                                     cols = c('lightgray',rev(viridisLite::magma(n=10))[-c(1:2)])#c("lightgray","#A02334")
+
+    )
+
+  })
+
+  pdf(paste0("./sub_neuron/06.",cls,"_Top_GO_DEG_UMAP.pdf"), width = 6, height = 6)
+  for(i in 1:length(plist)){print(plist[[i]])}
+  dev.off()
+  
+
+}

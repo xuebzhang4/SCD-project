@@ -1,0 +1,128 @@
+bmkrs <- list("Neurons" = c('Rbfox3','Thy1', 'Tubb3'),
+              "Astrocytes" = c('Slc1a3', 'Atp1b2'),  
+              "Oligodendrocytes" = c('Mbp','Hapln2'),
+              "Microglia" = c('Itgam','C1qa','Fcrls','Trem2'), 
+              "OPCs" = c('Pdgfra','Cspg4','Tmem100'), 
+              'Ependymal cells' = c('Rgs5', 'Pdgfrb'))
+
+SD.combined$cellType <- factor(SD.combined$cellType, levels = c(
+  "Neurons","Astrocytes","Oligodendrocytes", "Microglia","OPCs","Ependymal cells"
+))
+Idents(SD.combined) <- "cellType"
+dot_input <- do_DotPlot(sample = SD.combined,features =bmkrs,dot.scale = 3,colors.use = c("#62CDFF","#FF7BA9"),
+                        legend.length = 10, font.size =, dot_border = F, plot.grid = T) %>% 
+  {.$data} %>% {.[['face']] <- "main";.}
+# 
+# dot_input3 <- rbind(dot_input,dot_input2) %>%
+#   {.[['id']] <- factor(.[['id']], levels = ordered_x);.}
+dot_p <- ggplot(dot_input, aes(x = id, y = features.plot))+geom_point(aes(size=pct.exp, fill=avg.exp.scaled),shape=21)+
+  scale_fill_gradientn(colors = c("white","white","orange","red"), name = "Avg.exp")+
+  scale_size(range = c(2,10),limit = c(0.001,100))+
+  facet_grid(facets = .~face, scales = "free",space = "free")+
+  theme_bw()+
+  theme( 
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    #axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank(),
+    legend.position = "right",
+    panel.grid = element_line(color = "darkgray"),
+    panel.border = element_rect(fill = NA),
+    strip.background = element_blank(),
+    strip.text = element_blank(),
+    axis.ticks.length.x = unit(0, "mm"))
+
+SD.combined@meta.data[['UMIs per nucleus']] <- SD.combined@meta.data[['nCount_RNA']]
+SD.combined@meta.data[['Genes per nucleus']] <- SD.combined@meta.data[['nFeature_RNA']]
+p_list <- list()
+numinput <- summary(SD.combined@meta.data$cellType) %>% as.data.frame() %>%
+  {data.frame(X = rownames(.), Y = .[[1]])}
+numinput[['X']] <- factor(numinput[['X']], levels = levels(SD.combined$cellType))
+y_brk <- quantile(numinput[['Y']],c(0,0.5,1))
+p_list[['cell_num']] <-  ggplot(data = numinput, aes(x = X, y = Y))+
+  geom_bar(aes(fill = X),color = NA, stat = "identity")+
+  theme_bw()+
+  theme(panel.grid = element_blank(), 
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.x = element_blank(),
+        title = element_blank(),
+        legend.position = 'none',
+        panel.border = element_rect(fill = NA),
+        plot.margin = margin(0,0,-0.05,0, "cm"),
+        strip.background = element_blank(),
+        strip.text = element_blank(),
+        axis.ticks.length.x = unit(0, "mm")
+  )+
+  scale_y_continuous(breaks = c(y_brk[[1]],(sum(y_brk[[1]],y_brk[[3]])/2),y_brk[[3]]), 
+                     labels = c("","Nucleus count",""), 
+                     #limits = c(0,stats[5]*1.2)
+  )+ # I change the tick lable to meet merge function
+  scale_fill_manual(values = c("#83B4FF","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0","#C80036"),name=j)
+for(j in c("UMIs per nucleus","Genes per nucleus")){
+  
+  vln_inpt <- rbind(SD.combined@meta.data %>% dplyr::select(all_of(j),"cellType") %>%
+                      {colnames(.) <- c("Y","X");.[['face']] = "main";.})
+  stats <- boxplot.stats(vln_inpt[['Y']])$stats
+  y_brk <- quantile(SD.combined@meta.data[[j]][which( SD.combined@meta.data[[j]] < stats[5]*1.2)],c(0,0.5,1))
+  print(y_brk)
+  p_list[[j]] <- ggplot(data = vln_inpt, aes(x = X, y = Y))+
+    #geom_boxplot(aes(fill = X), outlier.color = NA, outlier.alpha = 0)+
+    geom_violin(aes(fill = X), trim = F, color = NA)+
+    theme_bw()+
+    theme(panel.grid = element_blank(), 
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text.x = element_blank(),
+          title = element_blank(),
+          legend.position = 'none',
+          panel.border = element_rect(fill = NA),
+          plot.margin = margin(0,0,-0.05,0, "cm"),
+          strip.background = element_blank(),
+          strip.text = element_blank(),
+          axis.ticks.length.x = unit(0, "mm")
+    )+
+    scale_y_continuous(breaks = c(y_brk[[1]],(sum(y_brk[[1]],y_brk[[3]])/2),y_brk[[3]]), 
+                       labels = c("",all_of(j),""), 
+                       limits = c(0,stats[5]*1.2))+ # I change the tick lable to meet merge function
+    scale_fill_manual(values = c("#83B4FF","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0","#C80036"),name=j)#+
+  #ylab(all_of(j))#pie color
+  
+  
+}
+
+my_anno <-
+  ggplot(data.frame(x_ = factor(levels(SD.combined$cellType), levels = levels(SD.combined$cellType)), y_ = 1, celltype = factor(levels(SD.combined$cellType), levels = levels(SD.combined$cellType))#, 
+                    # face = c(rep("main", length(levels(obj@meta.data[["my_celltype"]]))),
+                    #          rep("sub",length(levels(obj@meta.data[[subdot_grp]]))))
+  ), 
+  aes(x_, y_, fill=celltype))+
+  geom_tile()+
+  scale_fill_manual(values = c("#83B4FF","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0","#C80036"), name='Cell type')+
+  theme(panel.background = element_blank(),
+        panel.grid = element_blank(),
+        text=element_text(),
+        axis.text = element_blank(),
+        legend.position = "bottom",
+        axis.title =element_blank(),
+        panel.border = element_blank(),
+        strip.background = element_blank(),
+        strip.text = element_blank(),
+        legend.key.size = unit(0.25, 'cm'),
+        axis.ticks = element_blank())+
+  scale_y_continuous(expand = c(0,0))
+
+p_list2 <- p_list
+p_list2[['my_dot']] <- dot_p
+p_list2[['my_annn']] <- my_anno
+p_list2[['nrow']] = length(p_list2)
+p_list2[['heights']] = c(
+  rep(0.06,length(c("cell_num","nCount_RNA","nFeature_RNA"))),
+  1,0.01)
+final_dot <- do.call(deeptime::ggarrange2,p_list2)
+pdf(paste0(Cls_Viz_Path,"/overall_cell_biomarker_Y_complex_dot_0723_v2.pdf"), height = 8, width = 5)
+print(final_dot)
+dev.off()

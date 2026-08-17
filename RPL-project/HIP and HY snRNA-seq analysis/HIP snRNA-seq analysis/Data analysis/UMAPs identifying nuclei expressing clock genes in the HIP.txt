@@ -1,0 +1,91 @@
+  #==============Target_gene
+  message("Plotting Figure 1.5, Target genes...")
+  if(length(setdiff(tgt_gene, rownames(obj)))>=1){
+    message(setdiff(tgt_gene, rownames(obj)))
+    message("were not found in scRNA object")
+  }
+
+  tgt_gene <- intersect(tgt_gene, rownames(obj))
+  
+  all_gene_in_1umap <- function(obj,genes,gene_cols){
+    exp <- GetAssayData(obj, slot = "data")[genes,] %>%  t()  %>%
+      as.data.frame()
+    position <- obj@reductions$umap@cell.embeddings[rownames(exp),] %>%
+      as.data.frame()
+    
+    get_non_zero <-function(exps, dims, gene_name){
+      temp_df <- cbind(dims, gn = exps[[gene_name]])
+      temp_df <- temp_df %>% dplyr::filter(gn > 0)
+      return(temp_df)
+    }
+    
+    p <- ggplot()+
+      geom_point(data = position,
+                 aes(x = UMAP_1, y = UMAP_2),
+                 size=1, shape=16, color='lightgray')
+    iter = 1
+    for(gg in genes){
+     p =  p+
+        ggnewscale::new_scale("color")+
+        geom_point(data=get_non_zero(exp, position, gg),
+                   aes(x = UMAP_1, y = UMAP_2, colour = gn), shape = 16) +
+        scale_colour_gradient(low = "lightgrey", high = gene_cols[iter], name = gg)
+      iter = iter + 1
+    }
+    
+    p = p+
+      theme_classic()+
+      theme(#legend.position = "bottom",
+        legend.box = "horizontal",
+            axis.text = element_text(color = 'black', size = 12),
+            axis.title = element_text(color = 'black', size = 15),
+            axis.line = element_line(size = 1),
+            axis.ticks = element_line(size=1))
+    return(p)
+  }
+  
+  p <- all_gene_in_1umap(obj, tgt_gene, tgt_gene_color_complex_umap)
+  
+  pdf(paste0(Cls_Viz_Path,"/1.6.complex_tagetgene_umap.pdf"), width = 6+(0.71*length(tgt_gene)), height = 5.5)
+  print(p)
+  dev.off()
+  
+  #separate umap for target gene
+  chunks <- split(unlist(tgt_gene), cut(seq_along(unlist(tgt_gene)), ceiling(length(unlist(tgt_gene))/4) , labels= FALSE))
+  
+  for(i in names(chunks)){
+    p <- plot_density_cluster(obj=obj, #scRNA-seq seurat object
+                              marker=chunks[[i]],
+                              alpha = 0.05, # transparent
+                              dim = "UMAP", #could be UMAP or TSNE
+                              size =0.001,  #Size of dot
+                              ncol = 2, #number of columns
+                              cols = c('lightgray',rev(viridisLite::viridis(n=10))[-c(1:2)]))# select color to map
+    
+    p3 <- ggSCvis::ggscplot(object = obj,features = chunks[[i]]) +
+      geom_density2d_filled(bins = 10,show.legend = F) +
+      geom_scPoint(aes(color = value),size = 0.2) +
+      scale_color_viridis_c(option = "magma",direction = 1,name = "Gene") +
+      facet_wrap(~gene_name,ncol = 2) +
+      theme_bw() +
+      theme(panel.grid = element_blank(),
+            axis.ticks = element_blank(),
+            strip.background = element_blank(),
+            strip.text = element_text(face = "bold.italic",size = rel(1)),
+            axis.text = element_blank()) +
+      scale_fill_viridis_d(option = "magma",direction = 1,name = "Gene") +
+      coord_cartesian(expand = F)
+    
+    if(length(chunks[[i]]) < 3){
+      ww = 8; hh = 4.5
+    }else{
+      ww = 8; hh = 8
+    }
+    pdf(paste0(Cls_Viz_Path,"/1.6.",i,"target_density_umap.pdf"), width = ww, height = hh)
+    print(p)
+    dev.off()
+    
+    pdf(paste0(Cls_Viz_Path,"/1.6.",i,"target_density_umap_black.pdf"), width = ww, height = hh)
+    print(p3)
+    dev.off()
+  }

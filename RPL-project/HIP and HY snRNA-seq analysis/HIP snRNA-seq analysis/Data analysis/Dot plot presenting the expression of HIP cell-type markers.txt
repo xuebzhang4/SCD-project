@@ -1,0 +1,81 @@
+my_markers <- list("Neurons" = c('Rbfox3','Thy1', 'Tubb3'),
+                   "Astrocytes" = c('Gfap','Aldoc','Fabp7','S100b'),  #, 'Atp1b2' 'Slc1a3',
+                   "Oligodendrocytes" = c('Mbp','Hapln2'),
+                   "Microglia" = c('Itgam','C1qa','Fcrls','Trem2'), 
+                   "OPCs" = c('Pdgfra','Cspg4','Tmem100'), 
+                   "NSCs" = c("Sox2","Id4"), #Sox9  "Nfib",
+                   'Mural cells' = c('Rgs5', 'Pdgfrb'))
+my36colors <-c("#374E55FF", "#DF8F44FF", "#00A1D5FF", "#B24745FF", "#79AF97FF", "#6A6599FF" ,"#80796BFF",'#E64B35FF', '#4DBBD5FF',"#374E55FF", '#E59CC4', '#AB3282', '#23452F', '#BD956A', '#8C549C', '#585658', '#9FA3A8', '#E0D4CA', '#5F3D69', '#C5DEBA', '#58A4C3', '#E4C755', '#F7F398', '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B', '#712820', '#DCC1DD', '#CCE0F5',  '#CCC9E6', '#625D9E', '#68A180', '#3A6963', '#968175')
+
+library(dittoSeq)
+Idents(SD.combined) <- "ordered_type"
+p <- DotPlot(SD.combined, features = my_markers,
+             cols = colorRampPalette(c("white", "#00C1D4", "#FFED99","#FF7600"))(32))+coord_flip()
+
+exp <- p$data
+library(forcats)
+exp$features.plot <- factor(exp$features.plot, levels = unname(unlist(my_markers)))
+exp$id <- factor(exp$id, levels = c("Neurons (21)","Neurons (32)","Neurons (1)","Neurons (2)",
+                                    "Neurons (3)","Neurons (15)", "Neurons (6)","Neurons (9)","Neurons (11)","Neurons (12)",
+                                    "Neurons (10)","Neurons (18)","Neurons (27)","Neurons (14)","Neurons (17)",
+                                    "Neurons (20)","Neurons (24)","Neurons (26)",
+                                    "Astrocytes (13)","Astrocytes (4)","Astrocytes (5)","Astrocytes (8)","Astrocytes (25)","Astrocytes (29)",
+                                    "Oligodendrocytes (22)","Oligodendrocytes (7)","Oligodendrocytes (31)","Oligodendrocytes (30)",
+                                    "Microglia (16)","OPCs (19)", "NSCs (28)","Mural cells (23)")
+)
+
+
+# xintercept <- c()
+# for(i in levels(SD.combined)){
+#   xintercept <- c(xintercept,
+#          subset(SD.combined@meta.data, SD.combined@meta.data[['cellType']] == i)[['seurat_clusters']] %>%
+#            unique() %>% length()
+#          )
+# }
+
+p1 <- ggplot(exp,aes(x=id,y= features.plot))+
+  geom_point(aes(size=`pct.exp`,
+                 color=`avg.exp.scaled`))+
+  geom_point(aes(size=`pct.exp`,color=`avg.exp.scaled`),
+             shape=21,color=NA,stroke=1)+
+  theme(panel.background =element_blank(),
+        axis.line=element_line(colour="black"),
+        panel.grid = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y=element_text(size=11,color="black"))+
+  scale_color_gradientn(colors = colorRampPalette(c("white","white","orange","red"))(10))+
+  labs(x=NULL,y=NULL)+ 
+  geom_vline(xintercept=c(18.5,24.5, 28.5, 29.5, 30.5, 31.5,32.5), 
+             linetype="dotted",size=1)+
+  scale_size_continuous(limits = c(0.001,100))
+
+my_markers %>% lapply(function(m){intersect(m,rownames(SD.combined))}) %>% lapply(length) %>% unlist() 
+
+p2 <- p1+  
+  geom_rect(aes(xmin = 1 - 0.6, xmax = 18.5, ymin = 1 - 0.6, ymax = 3 + 0.5),
+            fill = "transparent", color = "black", size = 0.5)+
+  geom_rect(aes(xmin = 18.5, xmax = 24.5, ymin = 3 + 0.5, ymax = 3+ 4 + 0.5),
+            fill = "transparent", color = "black", size = 0.5)+
+  geom_rect(aes(xmin = 24.5, xmax = 28.5, ymin = 3+ 4 + 0.5, ymax = 3+ 4 + 2 + 0.5),
+            fill = "transparent", color = "black", size = 0.5)+
+  geom_rect(aes(xmin = 28.5, xmax = 29.5, ymin = 3+4+2 + 0.5, ymax = 3+4+2+4 + 0.5),
+            fill = "transparent", color = "black", size = 0.5)+
+  geom_rect(aes(xmin = 29.5, xmax = 30.5, ymin = 3+4+2+4 + 0.5, ymax = 3+4+2+4+3 + 0.5),
+            fill = "transparent", color = "black", size = 0.5)+
+  geom_rect(aes(xmin = 30.5, xmax = 31.5, ymin = 3+4+2+4+3 + 0.5, ymax = 3+4+2+4+3+2 + 0.5),
+            fill = "transparent", color = "black", size = 0.5)+
+  geom_rect(aes(xmin = 31.5, xmax = 32.5, ymin = 3+4+2+4+3+2 + 0.5, ymax = 3+4+2+4+3+2+2 + 0.5),
+            fill = "transparent", color = "black", size = 0.5)+
+  theme(axis.text.x = element_text(angle=90,
+                                   vjust=0.5, 
+                                   size=15,
+                                   hjust=1,
+                                   color = 'black'),
+        axis.text.y = element_text(size=15,color = 'black'),
+        legend.text = element_text(size=15,color = 'black'),
+        legend.title =  element_text(size=15,color = 'black'))+
+  xlab("Clusters")
+
+pdf(paste0(Cls_Viz_Path,"/overall_cell_biomarker_Hip_cluster_dot_with_rectagle.pdf"), width = 15, height = 8)
+print(p2)
+dev.off()

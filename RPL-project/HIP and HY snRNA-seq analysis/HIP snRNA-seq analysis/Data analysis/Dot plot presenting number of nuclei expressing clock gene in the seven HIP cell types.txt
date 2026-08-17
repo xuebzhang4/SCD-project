@@ -1,0 +1,30 @@
+tgt_gene = c("Clock","Per1","Per2","Cry1","Npas2",
+             "Cry2","Arntl","Nr1d1","Nr1d2") #
+
+OS_exprs <- GetAssayData(object = SD.combined, slot = "counts")
+OS_exprs <- OS_exprs[tgt_gene,]
+OS_exprs <- as.matrix(OS_exprs) %>% colSums()
+OS_exprs <- ifelse(OS_exprs == 0, "Without", "With")
+names(OS_exprs) <- SD.combined@meta.data$cellType
+SD.combined_prop <-prop.table(table(OS_exprs,names(OS_exprs), margin=2) %>%
+  as.data.frame
+freq<-reshape2::dcast(SD.combined_prop, Var2 ~ OS_exprs)
+
+p <- 
+  ggplot(freq, aes(x=Var2, y=Freq)) +
+  geom_segment( aes(x=Var2, xend=Var2, y=0, yend=Freq), color="skyblue") +
+  geom_point( color="blue", size=4, alpha=0.6) +
+  theme_light() +
+  coord_flip() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.border = element_blank(),
+    axis.ticks.y = element_blank()
+  )+
+  #facet_wrap(~gene, ncol = 4, scales = "free_x")+
+  xlab("Subtypes")+
+  ylab("Expressed cells count")
+
+pdf("./Results/Hip_0709/1107.Cell_Exprs_ClockGenes_V2_withNr1d.pdf",height = 4, width = 4)
+print(p)
+dev.off()

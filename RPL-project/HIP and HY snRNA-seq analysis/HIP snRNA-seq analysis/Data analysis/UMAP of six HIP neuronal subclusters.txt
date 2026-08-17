@@ -1,0 +1,44 @@
+ann.ids <- c(
+  'NEU1', #cls 0
+  'NEU2', #1
+  'NEU3', #2
+  'NEU4', #3
+  'NEU5', #4
+  'NEU6' #5
+)
+Idents(sub_scobj) <- plyr::mapvalues(Idents(sub_scobj), from = levels(Idents(sub_scobj)), to = ann.ids)
+sub_scobj$cellType=Idents(sub_scobj)
+
+df <- data.frame(cellType = factor(sub_scobj@meta.data[,c('cellType')],levels = ann.ids),
+                 sub_scobj@reductions$umap@cell.embeddings[,1:2])
+
+p3 <- 
+  ggplot(df,aes(x= umap_1 , y = umap_2 ,col=cellType)) + 
+  geom_point(size = 0.2, shape=16)+
+  scale_color_manual("",values = c("#3572EF","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0","#C80036"))+
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.background = element_blank(),
+        legend.title = element_blank(),
+        legend.key=element_rect(fill='white'),
+        legend.text = element_text(size=15), 
+        legend.key.size=unit(0.6,'cm'),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())+
+  guides(color = guide_legend(override.aes = list(size=6)))+
+  geom_segment(aes(x = min(umap_1) , y = min(umap_2),xend = min(umap_1)+3, yend = min(umap_2)),
+               colour = "black", size=0.5,
+               arrow = arrow(length = unit(0.2,"cm"), 
+                             type = "closed"))+
+  geom_segment(aes(x = min(umap_1), y = min(umap_2),xend = min(umap_1),yend = min(umap_2)+1.5),
+               colour = "black", size=0.5,arrow = arrow(length = unit(0.2,"cm"), 
+                                                        type = "closed")) +
+  annotate("text", x = min(df$umap_1) +1.4, y = min(df$umap_2) -0.3, label = "UMAP1",
+           color="black",size = 5) + 
+  annotate("text", x = min(df$umap_1) -0.8, y = min(df$umap_2) + 0.8, label = "UMAP2",
+           color="black",size = 5,angle=90)
+
+pdf(file = "./08-neurocluster.UMAP.pdf",width =6.5,height = 5.5)
+print(p3)
+dev.off()

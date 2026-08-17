@@ -1,0 +1,139 @@
+require(clusterProfiler)
+library(org.Mm.eg.db)
+setwd("D:/Works/Kim/Results/Hip_0709/")
+sub_scobj <- readRDS("SD.hip.ck.neuro.Rds")
+# my_path <- fread("D:/Works/Kim/Y/Results/Y_0709/customized_path.txt",header = T, sep = "\t")
+# my_geneset <- list()
+# for(i in unique(my_path[[1]])){my_geneset[[i]] <- my_path[[2]][which(my_path[[1]] == i)]}
+
+for(cls in levels(sub_scobj)){
+  temp_obj <- subset(sub_scobj, idents = cls)
+  Idents(temp_obj) <- "sample_info"
+  
+  deg_ns <- FindMarkers(temp_obj, ident.1 = "NS_CT18", ident.2 = "NS_CT6", verbose = FALSE, min.pct = 0.05,logfc.threshold = 0.1)
+  deg_sd <- FindMarkers(temp_obj, ident.1 = "SD_CT18", ident.2 = "SD_CT6", verbose = FALSE, min.pct = 0.05,logfc.threshold = 0.1)
+  deg_ct18 <- FindMarkers(temp_obj, ident.1 = "SD_CT18", ident.2 = "NS_CT18", verbose = FALSE, min.pct = 0.05,logfc.threshold = 0.1)
+
+  ns_go <- enrichGO(gene         = rownames(deg_ns),
+                    OrgDb         = org.Mm.eg.db,
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.05,
+                    qvalueCutoff  = 0.05)
+  sd_go <- enrichGO(gene         = rownames(deg_sd),
+                    OrgDb         = org.Mm.eg.db,
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.05,
+                    qvalueCutoff  = 0.05)
+  ct18_go <- enrichGO(gene         = rownames(deg_ct18),
+                      OrgDb         = org.Mm.eg.db,
+                      keyType       = 'SYMBOL',
+                      ont           = "BP",
+                      pAdjustMethod = "BH",
+                      pvalueCutoff  = 0.05,
+                      qvalueCutoff  = 0.05)
+  
+  
+  all_dot <- aplot::plot_list(dotplot(ns_go, showCategory=50) + ggtitle("NS_CT18 vs CT6"), 
+                             dotplot(sd_go, showCategory=50) + ggtitle("SD_CT18 vs CT6"), 
+                             ncol = 2, tag_levels='A')
+  all_dot2 <- aplot::plot_list(dotplot(ns_go, showCategory=50) + ggtitle("SD_CT18 vs NS_CT18"), 
+                              ncol = 2, tag_levels='A')
+  pdf(file=paste0("D:/Works/Kim/Results/Hip_0709/","13.GOBP_",cls,".pdf"),height=30,width=20)
+  print(all_dot)
+  print(all_dot2)
+  dev.off()
+}
+
+
+All_DEG_tab <- lapply(levels(sub_scobj), function(cls){
+  temp_obj <- subset(sub_scobj, idents = cls)
+  Idents(temp_obj) <- "sample_info"
+  
+  deg_ns <- FindMarkers(temp_obj, ident.1 = "NS_CT18", ident.2 = "NS_CT6", verbose = FALSE, min.pct = 0.05,logfc.threshold = 0.1)
+  deg_ns <- cbind(gene = rownames(deg_ns),deg_ns)
+  cbind(cluster = cls,deg_ns) %>% return()
+}) %>% bind_rows()
+colnames(All_DEG_tab) <- c("cluster","gene","p_val", "avg_log2FC", "NS_CT18","NS_CT6","p_val_adj")
+fwrite(All_DEG_tab,file=paste0("D:/Works/Kim/Results/Hip_0709/","13.ALL_DEG_SubNeu_Hip_1311.csv"), col.names = T, row.names = F, sep = ",")
+dot_input <- lapply(c("NEU2", "NEU3", "NEU4"), function(cls){
+  temp_obj <- subset(sub_scobj, idents = cls)
+  Idents(temp_obj) <- "sample_info"
+  
+  deg_ns <- FindMarkers(temp_obj, ident.1 = "NS_CT18", ident.2 = "NS_CT6", verbose = FALSE, min.pct = 0.05,logfc.threshold = 0.1)
+  
+  ns_go <- enrichGO(gene         = rownames(deg_ns),
+                    OrgDb         = org.Mm.eg.db,
+                    keyType       = 'SYMBOL',
+                    ont           = "BP",
+                    pAdjustMethod = "BH",
+                    pvalueCutoff  = 0.05,
+                    qvalueCutoff  = 0.05)
+  output <- ns_go@result %>%
+    dplyr::filter(Description %in% c(
+      "synapse organization", "regulation of membrane potential", 
+      "dendrite development", "cognition", 
+      "regulation of synapse structure or activity", 
+      "learning or memory", "regulation of synapse organization", 
+      "regulation of cation transmembrane transport", "postsynapse organization", 
+      "vesicle-mediated transport in synapse", "regulation of synaptic plasticity"
+    )) %>%
+    tidyr::separate(col = "GeneRatio", into = c("R1","R2")) %>%
+    mutate(GeneRatio = as.numeric(R1)/as.numeric(R2),
+           log10pdj = -log10(p.adjust),
+           Subtype = cls)
+  
+  deg_ns[['cluster']] <- cls
+  
+  go_e <- ns_go@result %>% mutate(cluster = cls)
+  return(list('DEG' = deg_ns, 'GO_Enrich' = go_e, 'dot_input' = output))
+})
+
+DEG_NS <- lapply(dot_input,function(x){return(x[['DEG']] %>% mutate(gene = rownames(x[['DEG']])))}) %>% bind_rows()
+NS_GO <- lapply(dot_input,function(x){return(x[['GO_Enrich']])}) %>% bind_rows()
+dot_input <- lapply(dot_input,function(x){return(x[['dot_input']])}) %>% bind_rows()
+
+wanted_path <- c(
+  "synapse organization", "regulation of membrane potential", 
+  "dendrite development", "cognition", 
+  "regulation of synapse structure or activity", 
+  "learning or memory", "regulation of synapse organization", 
+  "regulation of cation transmembrane transport", "postsynapse organization", 
+  "vesicle-mediated transport in synapse", "regulation of synaptic plasticity"
+)
+dot_input$Description <- factor(dot_input$Description, levels = rev(wanted_path))
+dot_input[['psudo_y']] <- paste0(dot_input$Description,"|",dot_input$Subtype)
+
+dot_input[['psudo_y']] <- factor(dot_input[['psudo_y']], levels = rev(
+  lapply(wanted_path,function(x){paste0(x,c("|NEU2", "|NEU3", "|NEU4"))}) %>% unlist()
+)
+)
+my_labels <- lapply(wanted_path,function(x){paste0(x,c("|NEU2", "|NEU3", "|NEU4"))}) %>% unlist() %>% rev()
+
+my_labels[grepl("NEU2|NEU4",my_labels)] <- ""
+my_labels <- gsub("\\|NEU3",'',my_labels)
+  
+p <- ggplot(data = dot_input, aes(x = GeneRatio, y = psudo_y))+
+  geom_point(aes(color = log10pdj, size = as.numeric(R1), shape = Subtype))+
+  #facet_wrap(~Subtype, nrow = 1)+
+  theme_bw()+
+  theme(plot.background = element_blank(),
+        strip.background = element_blank(),
+        #panel.grid = element_blank(),
+        panel.background = element_blank())+
+  scale_color_gradientn(colours = c("royalblue","red"), name = "-log10(p.adj)")+
+  scale_size_continuous(name = "Count")+
+  ylab(NULL)+
+  xlab("Gene Ratio")+
+  scale_y_discrete(labels = my_labels)+
+  scale_shape_manual(values = c(19,15,17))
+
+pdf(file=paste0("D:/Works/Kim/Results/Hip_0709/","13.GOBP_ALLinOne_2811_v5.pdf"),height=6,width=6)
+print(p)
+dev.off()
+fwrite(DEG_NS,file=paste0("D:/Works/Kim/Results/Hip_0709/","13.DEG_NS_NEU234_HIP_2811.csv"), col.names = T, row.names = F, sep = ",")
+fwrite(NS_GO,file=paste0("D:/Works/Kim/Results/Hip_0709/","13.DEG_ALL_GO_TERMS_2811.csv"), col.names = T, row.names = F, sep = ",")
+fwrite(dot_input,file=paste0("D:/Works/Kim/Results/Hip_0709/","13.GOBP_ALLinOne_2811_v5.csv"), col.names = T, row.names = F, sep = ",")

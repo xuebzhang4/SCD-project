@@ -1,0 +1,152 @@
+# cls = levels(Idents(sub_scobj))[c(2,3,4)]
+for(cls in levels(Idents(sub_scobj))){
+  one_cls_obj <- subset(sub_scobj, idents = cls)
+  tgt_gene = c("Clock","Per1","Per2","Per3","Cry1","Npas2",
+               "Cry2","Nr1d1","Nr1d2","Dbp","Nfil3","Rora","Rorb","Arntl")
+  
+  tgt_gene <- intersect(tgt_gene,rownames(one_cls_obj))
+  #group stat
+  exp <- GetAssayData(one_cls_obj, slot = "data")[tgt_gene,] %>% as.matrix %>% t() %>%
+    as.data.frame()
+  vln_genes <- c()
+  for(i in tgt_gene){
+    if(mean(exp[[i]]) != 0){vln_genes <- c(vln_genes,i)}else{
+      message(paste0(i, " will not be plotted as no cell expresses"))
+    }
+  }
+  exp <- exp %>% dplyr::select(all_of(vln_genes))
+  exp[['group']] <-  one_cls_obj@meta.data$sample_info
+  exp[['group']] <- factor(exp[['group']],levels = c("NS_CT6","NS_CT18","SD_CT6","SD_CT18"))
+  #tt <- reshape2::melt(data = exp, value.name = "expression", id.vars = "group")
+  
+  
+  #get violin and ridge
+  get_vln_ridge <- function(dat, group_col = 'group', gene2show = tgt_gene, cutoff = 0){
+    p_list <- lapply(gene2show,function(gn){
+      input_dat <- data.frame(gene = dat[[gn]],grp = dat[[group_col]])
+      input_dat <- input_dat %>% dplyr::filter(gene > cutoff)
+      
+      vln_p <- ggstatsplot::ggbetweenstats(
+        data = input_dat,
+        x = grp, ## grouping/independent variable
+        y = gene, ## dependent variables
+        type = "nonparametric", ## type of statistics
+        xlab = "", ## label for the x-axis
+        ylab = gn, ## label for the y-axis
+        ## turn off messages
+        ggtheme = ggthemes::theme_calc() ## a different theme
+      )+
+        scale_color_manual(values = c("#3572EF","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0","#C80036"))+
+        theme(panel.grid = element_blank(),
+              panel.background = element_blank())
+      
+      vln_p2 <- ggplot(data = input_dat %>% {.[['grp']] <- factor(.[['grp']], levels = c('NS_CT6','NS_CT18','SD_CT6','SD_CT18'));.})+
+        geom_violin(aes(x = grp, y = gene, fill = grp), alpha = 0.5, color = NA, trim = F)+
+        geom_boxplot(aes(x = grp, y = gene, fill = grp),color = "black", width = 0.3, outlier.fill = NA, outlier.alpha = 0)+
+        xlab("")+
+        ylab(gn)+
+        theme_classic()+
+        theme(legend.position = "none")+
+        scale_color_manual(values = c("#2fcbcf","#f8766d","#2fcbcf","#f8766d","#FF6969","#FFD0D0","#C80036"))+
+        scale_fill_manual(values = c("#2fcbcf","#f8766d","#2fcbcf","#f8766d","#FF6969","#FFD0D0","#C80036"))
+      
+      box_p <- ggplot(data = input_dat)+
+        geom_boxplot(aes(x = grp, y = gene, fill = grp))+
+        xlab("")+
+        ylab(gn)+
+        theme_classic()+
+        theme(legend.position = "none")+
+        scale_fill_viridis_d()
+      
+      ridge_p <- ggplot(data = input_dat %>% {.[['grp']] <- factor(.[['grp']], levels = rev(c('NS_CT6','NS_CT18','SD_CT6','SD_CT18')));.}) +
+        ggridges::stat_density_ridges(
+          geom = "density_ridges_gradient",
+          calc_ecdf = TRUE,
+          aes(x = gene, y = grp,fill = 0.5 - abs(0.5 - after_stat(ecdf))))+
+        scale_fill_gradientn(colours = rev(RColorBrewer::brewer.pal(11,"Spectral")),name = "Density")+
+        theme_bw()+
+        theme(panel.grid = element_blank(),
+              axis.ticks.y = element_blank(),
+              axis.title.y = element_blank(),
+              legend.position = "right",
+              panel.border = element_blank(),
+              strip.background = element_blank())
+      return(list(
+        "fancy_vln" = vln_p,
+        "regular_vln" = vln_p2,
+        "box" = box_p,
+        "ridge" = ridge_p,
+        "merge" = cowplot::plot_grid(plotlist = list(vln_p,vln_p2,box_p,ridge_p),ncol = 2)
+      ))
+      
+      
+    })
+    names(p_list) <- gene2show
+    return(p_list)
+  }
+  myplots <- get_vln_ridge(dat = exp, group_col = 'group', gene2show = tgt_gene, cutoff = 0)
+  pdf(paste0("./sub_neuron/02.neuro_subset_",cls,"_cut_0_gn.pdf"), height = 10, width = 10)
+  for(i in names(myplots)){print(myplots[[i]][['merge']])}
+  dev.off()
+}
+outTab <- data.table()
+
+for(cls in levels(Idents(sub_scobj))){
+  one_cls_obj <- subset(sub_scobj, idents = cls)
+  tgt_gene = c("Clock","Per1","Per2","Per3","Cry1","Npas2",
+               "Cry2","Nr1d1","Nr1d2","Dbp","Nfil3","Rora","Rorb","Arntl")
+  
+  tgt_gene <- intersect(tgt_gene,rownames(one_cls_obj))
+  #group stat
+  exp <- GetAssayData(one_cls_obj, slot = "data")[tgt_gene,] %>% as.matrix %>% t() %>%
+    as.data.frame()
+  vln_genes <- c()
+  for(i in tgt_gene){
+    if(mean(exp[[i]]) != 0){vln_genes <- c(vln_genes,i)}else{
+      message(paste0(i, " will not be plotted as no cell expresses"))
+    }
+  }
+  exp <- exp %>% dplyr::select(all_of(vln_genes))
+  exp[['group']] <-  one_cls_obj@meta.data$sample_info
+  exp[['group']] <- factor(exp[['group']],levels = c("NS_CT6","NS_CT18","SD_CT6","SD_CT18"))
+  
+  temp_tab <- lapply(tgt_gene,function(gn){
+    input_dat <- data.frame(gene = exp[[gn]],grp = exp[[group_col]])
+    input_dat <- input_dat %>% dplyr::filter(gene > 0)
+    
+    vln_p2 <- ggplot(data = input_dat %>% {.[['grp']] <- factor(.[['grp']], levels = c('NS_CT6','NS_CT18','SD_CT6','SD_CT18'));.})+
+      geom_violin(aes(x = grp, y = gene, fill = grp), alpha = 0.5, color = NA, trim = F)+
+      geom_boxplot(aes(x = grp, y = gene, fill = grp),color = "black", width = 0.3, outlier.fill = NA, outlier.alpha = 0)+
+      xlab("")+
+      ylab(gn)+
+      theme_classic()+
+      theme(legend.position = "none")+
+      scale_color_manual(values = c("#2fcbcf","#f8766d","#2fcbcf","#f8766d","#FF6969","#FFD0D0","#C80036"))+
+      scale_fill_manual(values = c("#2fcbcf","#f8766d","#2fcbcf","#f8766d","#FF6969","#FFD0D0","#C80036"))
+    
+    violindata <- ggplot_build(vln_p2)$data[[1]]
+    
+    violindata_summary <- violindata %>%
+      group_by(x) %>%
+      summarize(
+        ymin = min(y),
+        ymax = max(y),
+        width_at_peak = max(density))
+    violindata_summary[['cluster']] <- cls
+    
+    violindata_summary[['group']] <- violindata_summary[['x']]
+    violindata_summary[['group']] <- as.numeric(violindata_summary[['group']])
+    violindata_summary <- data.table(violindata_summary)
+    for(k in unique(violindata_summary[['x']])){
+      violindata_summary[['group']][which(violindata_summary[['group']] == k)] <- c("NS_CT6","NS_CT18","SD_CT6","SD_CT18")[as.numeric(k)]
+    }
+    violindata_summary <- violindata_summary %>%
+      {.[['x']] <- .[['ymax']] - .[['ymin']];.} %>%
+      rename(range = x)
+    violindata_summary <- cbind(gene = gn, violindata_summary)
+    
+    return(violindata_summary)
+  }) %>% dplyr::bind_rows()
+  outTab <- rbind(outTab, temp_tab)
+}
+fwrite(outTab, "./sub_neuron//sub_neuron_distribution_clock_genes_0729.csv", sep = ",", col.names = T, row.names = F, quote = T)

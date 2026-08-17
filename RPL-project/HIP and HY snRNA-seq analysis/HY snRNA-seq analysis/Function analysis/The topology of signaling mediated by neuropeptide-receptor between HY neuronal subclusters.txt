@@ -1,0 +1,282 @@
+osb.cells_new2 <- readRDS("D:/Works/Kim/Y/Results/Y_0709/sub_neuron/Y.ck.neuro.Rds") # neuro
+
+ann.ids <- c(
+  'LH', #cls 0
+  'POA', #1
+  'SCN', #2
+  'MB_PVN', #3
+  'AHN' #4
+)
+#VIP #Ligand - Receptor
+vip_pair <- list(
+  c("Vip","C1ql3"),
+  c("Vipr2","Lbh")
+)
+
+Prok_pair <- list(
+  c('Prok2','Avp'),
+  c('Cck','Prokr2')
+)
+
+Avp_pair <- list(
+  c('Gadd45a','Hspa1a'),
+  c('Ppp1r17','Gem'),
+  c('Mef2c','Peg10'),
+  c('Grp','Synpr')
+)
+
+
+
+Idents(osb.cells_new2) <- plyr::mapvalues(Idents(osb.cells_new2), from = levels(Idents(osb.cells_new2)), to = ann.ids)
+osb.cells_new2$cellType=Idents(osb.cells_new2)
+osb.cells_new2$cellType_sample <- paste0(osb.cells_new2$cellType,"|",osb.cells_new2$sample_info)
+Idents(osb.cells_new2) <- 'cellType_sample'
+
+cellcomm_input <- subset(osb.cells_new2, feature = unlist(c(vip_pair,Prok_pair,Avp_pair)))
+cellcomm_input <- GetAssayData(object = cellcomm_input, slot = "data") %>% as.matrix() %>% t() %>% as.data.table()
+cellcomm_input[['cellType_sample']] <- osb.cells_new2$cellType_sample
+
+cellcomm_input <- cellcomm_input[, lapply(.SD, mean), by = cellType_sample, .SDcols = !'cellType_sample']
+
+
+
+calculate_pairwise_product <- function(data, gene_pairs,path_n) {
+  result_list_forward <- list()  
+  result_list_reverse <- list()  
+  
+  for (pair in gene_pairs) {
+    gene1 <- pair[1]
+    gene2 <- pair[2]
+    
+   
+    cell_combinations <- combn(data$cellType_sample, 2, simplify = FALSE)
+    
+
+    for (comb in cell_combinations) {
+      cell1 <- comb[1]
+      cell2 <- comb[2]
+      
+
+      row1 <- data[cellType_sample == cell1]
+      row2 <- data[cellType_sample == cell2]
+      
+
+      product_forward <- row1[[gene1]] * row2[[gene2]]
+      result_list_forward <- rbind(result_list_forward, 
+                                   data.table(cellType1 = cell1, cellType2 = cell2, 
+                                              gene1 = gene1, gene2 = gene2, 
+                                              product = product_forward))
+      
+
+      product_reverse <- row2[[gene1]] * row1[[gene2]]
+      result_list_reverse <- rbind(result_list_reverse, 
+                                   data.table(cellType1 = cell2, cellType2 = cell1, 
+                                              gene1 = gene2, gene2 = gene1, 
+                                              product = product_reverse))
+    }
+  }
+  
+  # result_forward <- rbindlist(result_list_forward)
+  # result_reverse <- rbindlist(result_list_reverse)
+  
+
+  result_list_forward[, sample1 := tstrsplit(cellType1, "\\|")[[2]]]  
+  result_list_forward[, sample2 := tstrsplit(cellType2, "\\|")[[2]]]  
+  
+
+  result_list_forward <- result_list_forward[sample1 == sample2]
+  
+
+  result_list_forward[, c("sample1") := NULL]
+  result_list_forward <- result_list_forward %>% rename(Sample = sample2)
+  ###############
+  result_list_reverse[, sample1 := tstrsplit(cellType1, "\\|")[[2]]]  
+  result_list_reverse[, sample2 := tstrsplit(cellType2, "\\|")[[2]]]  
+
+  result_list_reverse <- result_list_reverse[sample1 == sample2]
+  
+
+  result_list_reverse[, c("sample1") := NULL]
+  result_list_reverse <- result_list_reverse %>% rename(Sample = sample2)
+  
+  return(list(forward = result_list_forward %>% mutate(Signal = path_n), reverse = result_list_reverse %>% mutate(Signal = path_n)))
+}
+vip_results <- calculate_pairwise_product(cellcomm_input, vip_pair,"VIP")
+prok_results <- calculate_pairwise_product(cellcomm_input, Prok_pair,"Prok")
+avp_results <- calculate_pairwise_product(cellcomm_input, Avp_pair,"Avp")
+
+forward_comm <- rbindlist(list(vip_results$forward,prok_results$forward,avp_results$forward))
+reverse_comm <- rbindlist(list(vip_results$reverse,prok_results$reverse,avp_results$reverse))
+
+overall_forward_comm <- forward_comm[, .(product_sum = sum(product)), by = .(cellType1, cellType2, Sample, Signal)]
+overall_reverse_comm <- reverse_comm[, .(product_sum = sum(product)), by = .(cellType1, cellType2, Sample, Signal)]
+
+overall_forward_comm[['score']] <- overall_forward_comm[['product_sum']] %>% 
+  {(.-min(.))/(max(.)-min(.))}
+overall_reverse_comm[['score']] <- overall_reverse_comm[['product_sum']] %>% 
+  {(.-min(.))/(max(.)-min(.))}
+
+overall_forward_comm <- overall_forward_comm %>% tidyr::separate(col = "cellType1", into = c("cellType1","junk1"), sep = "\\|")
+overall_forward_comm <- overall_forward_comm %>% tidyr::separate(col = "cellType2", into = c("cellType2","junk2"), sep = "\\|")
+overall_forward_comm <- overall_forward_comm %>% dplyr::select(-junk1, -junk2)
+overall_reverse_comm <- overall_reverse_comm %>% tidyr::separate(col = "cellType1", into = c("cellType1","junk1"), sep = "\\|")
+overall_reverse_comm <- overall_reverse_comm %>% tidyr::separate(col = "cellType2", into = c("cellType2","junk2"), sep = "\\|")
+overall_reverse_comm <- overall_reverse_comm %>% dplyr::select(-junk1, -junk2)
+
+
+#-----Formal
+library(igraph)
+library(RColorBrewer)
+library(data.table)
+
+setDT(overall_forward_comm)
+setDT(overall_reverse_comm)
+
+
+color.bar <- function(lut, min = 0, max = 1, nticks = 11, ticks = seq(min, max, len = nticks), title = '') {
+  scale = (length(lut) - 1) / (max - min)
+  
+  plot(c(0, 10), c(min, max), type = 'n', bty = 'n', xaxt = 'n', xlab = '', yaxt = 'n', ylab = '', main = title)
+  axis(2, ticks, las = 1)
+  for (i in 1:(length(lut) - 1)) {
+    y = (i - 1) / scale + min
+    rect(0, y, 10, y + 1 / scale, col = lut[i], border = NA)
+  }
+}
+
+
+all_nodes <- unique(c(overall_forward_comm$cellType1, overall_forward_comm$cellType2))
+
+
+#node_colors <- setNames(c("#a7e6ff","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0"), all_nodes)
+node_colors <- setNames(c("#a7e6ff","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0"), 
+                        c("LH","POA","SCN","MB_PVN","AHN"))
+
+all_edges <- data.frame(
+  from = overall_forward_comm$cellType1,
+  to = overall_forward_comm$cellType2
+)
+all_graph <- graph_from_data_frame(all_edges, directed = TRUE, vertices = all_nodes)
+
+
+fixed_layout <- layout_with_fr(all_graph)
+
+
+node_layout <- data.frame(
+  name = V(all_graph)$name,
+  x = fixed_layout[, 1],
+  y = fixed_layout[, 2]
+)
+SCN_locus <- which(node_layout[['name']] == "SCN")
+Bst_locus <- which(node_layout[['x']] == min(node_layout[['x']]))
+Bst_n <- node_layout[['name']][Bst_locus]
+node_layout[['name']][Bst_locus] <- "SCN"
+node_layout[['name']][SCN_locus] <- Bst_n
+
+#https://jevansbio.wordpress.com/igraph-arrowhead-customisation-hack/
+#save(overall_forward_comm,overall_reverse_comm,forward_comm,reverse_comm,file = "cus_Y_comm.Rdata")
+# 
+source("D:/Works/Kim/igraphplot2.R")
+environment(plot.igraph2) <- asNamespace('igraph')
+environment(igraph.Arrows2) <- asNamespace('igraph')
+lapply(c("VIP", "Prok", "Avp"), function(sg) {
+  min_val <- min(overall_forward_comm$score[which(overall_forward_comm$Signal == sg)])
+  max_val <- max(overall_forward_comm$score[which(overall_forward_comm$Signal == sg)])
+  
+  purrr::map(unique(overall_forward_comm$Sample), function(spp) {
+
+    filtered_data <- overall_forward_comm[Sample == spp & Signal == sg]
+    
+    if (nrow(filtered_data) == 0) {
+      return(NULL)  
+    }
+    
+
+    edges <- data.frame(
+      from = filtered_data$cellType1, 
+      to = filtered_data$cellType2, 
+      weight = filtered_data$score
+    )
+    
+
+    g <- graph_from_data_frame(edges, directed = TRUE, vertices = all_nodes)
+    
+
+    edge_weights <- E(g)$weight
+    edge_widths <- edge_weights * 10 
+    color_palette <- colorRampPalette(c("white","#E84545"))(100)
+    edge_colors <- color_palette[as.numeric(cut(edge_weights, breaks = seq(0, max_val, length.out = 101), include.lowest = TRUE))]
+    
+
+    node_names_g <- V(g)$name
+    layout_g <- node_layout[node_layout$name %in% node_names_g, ]
+    layout_g <- layout_g[match(node_names_g, layout_g$name), ]
+    layout_g_matrix <- as.matrix(layout_g[, c("x", "y")])
+    
+
+    node_colors_g <- node_colors[node_names_g]
+    
+
+    pdf(paste0("./Results/Y_0709/10.custom_HY_", sg, " Signal in ", spp, ".pdf"), width = 10, height = 8)  
+    layout(matrix(c(1, 2), nrow = 1), widths = c(3, 0.5))
+    par(mar = c(5, 4, 2, 1))  
+    
+    #print(E(g)$weight/max(E(g)$weight)*10)
+    plot(g, 
+         layout = layout_g_matrix,  
+         edge.width = edge_widths * 2,
+         edge.color = edge_colors, 
+         vertex.color = node_colors_g, 
+         vertex.label = V(g)$name, 
+         vertex.frame.color=NA,
+         vertex.size = 35, 
+         vertex.label.cex = 0.8, 
+         vertex.label.color = "black", 
+         main = paste0("Directed Network Graph of ", sg, " Signal in ", spp),
+         #edge.arrow.size=E(g)$weight/max(E(g)$weight)*10,
+         #edge.arrow.width=E(g)$weight/max(E(g)$weight)*10,
+         edge.arrow.size = 3, 
+         edge.curved = 0.2)    
+    color.bar(color_palette, min = 0, max = max_val)  
+    dev.off()
+  })
+})
+#ligand_receptor-------------
+
+
+forward_comm_long <- melt(forward_comm %>% dplyr::filter(Signal == "Avp"), id.vars = c("product", "Sample", "Signal"),
+                          measure.vars = c("cellType1", "cellType2"),
+                          variable.name = "position", value.name = "cellType")
+
+
+forward_comm_long[, x := ifelse(position == "cellType1", 1, 2)]
+
+
+edges <- forward_comm[, .(cellType1, cellType2, product, Sample)]
+
+
+ggplot() +
+
+  geom_segment(data = edges, 
+               aes(x = 1, xend = 2, y = cellType1, yend = cellType2, 
+                   color = product, size = product),
+               lineend = "round", show.legend = TRUE) +
+  scale_color_gradientn(colours = c("white","#F95454"))+
+  ggnewscale::new_scale_color()+
+
+  geom_point(data = forward_comm_long, 
+             aes(x = x, y = cellType, color = Signal), 
+             size = 3, show.legend = TRUE) +
+ 
+  scale_x_continuous(breaks = c(1, 2), labels = c("Ligand", "Receptor")) +
+  
+  scale_size_continuous(range = c(0.5, 2)) + 
+  facet_wrap(~ Sample+Signal,ncol = 3, scales = "free_y") +  
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.text.y = element_text(size = 10),
+        axis.text.x = element_text(size = 12, face = "bold")) +
+  labs(title = "Network Connections between cellType1 and cellType2",
+       color = "Product", size = "Product", fill = "Signal")
+

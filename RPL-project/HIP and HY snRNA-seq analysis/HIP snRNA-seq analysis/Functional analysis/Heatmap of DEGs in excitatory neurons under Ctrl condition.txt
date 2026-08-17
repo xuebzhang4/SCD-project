@@ -1,0 +1,102 @@
+  path_gen <- dot_input %>% dplyr::filter(Subtype == cls) %>% {.[['geneID']]} %>%
+    lapply(function(gn){return(str_split(string = gn,pattern = "/"))}) %>% unlist() %>% unique()
+  
+  temp_obj <- readRDS(paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  temp_obj@meta.data[['cellType']] <- paste0(cls,"_",(as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1))
+  temp_obj@meta.data[['cellType']] <- factor(temp_obj@meta.data[['cellType']],levels = c(
+    "NEU2_1",  "NEU2_2",  "NEU2_3",  "NEU2_4"
+  ))
+  Idents(temp_obj) <- 'cellType'
+  
+  ann.ids <- c(
+    'Excitatory', #cls 0
+    'Inhibitory', #1
+    'Excitatory', #2
+    'Excitatory'
+  )
+  
+  
+  temp_obj@meta.data[['seurat_clusters_2']] <- as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1
+  Idents(temp_obj) <- 'seurat_clusters_2'
+  
+  Idents(temp_obj) <- 'seurat_clusters'
+  Idents(temp_obj) <- plyr::mapvalues(Idents(temp_obj), from = levels(Idents(temp_obj)), to = ann.ids)
+  temp_obj$cellType=Idents(temp_obj)
+  
+  DEG <- FindMarkers(temp_obj %>% subset(idents = 'Excitatory') %>%
+                       {Idents(.) <- 'sample_info';.}, ident.1 = "NS_CT18", ident.2 = "NS_CT6", verbose = FALSE, min.pct = 0,
+                     logfc.threshold = 0) %>% 
+    mutate(gene = rownames(.)) %>%dplyr::filter(gene %in% path_gen & p_val_adj < 0.05)
+
+  viz_gene <- DEG[['gene']]
+
+  fwrite(DEG %>% dplyr::filter(gene %in% viz_gene), paste0("./sub_neuron/03.",cls,"_ALL_path_DEG_Excitatory_NS_CT18vsCT6.csv"),col.names = T, row.names = F, sep = ",")
+  
+  
+  # final_deg_ns <- DEG %>% dplyr::filter(gene %in% viz_deg) %>% dplyr::select(gene, avg_log2FC) %>%
+  #   rename(NS = avg_log2FC)
+  final_deg_ns <- DEG %>% dplyr::select(gene, avg_log2FC) %>%
+    dplyr::filter(gene %in% viz_gene) %>%
+    rename(NS = avg_log2FC)
+ 
+  final_deg_sd <- FindMarkers(temp_obj %>% subset(idents = 'Excitatory') %>%
+                                {Idents(.) <- 'sample_info';.}, ident.1 = "SD_CT18", ident.2 = "SD_CT6", verbose = FALSE, min.pct = 0,logfc.threshold = 0) %>% 
+    mutate(gene = rownames(.)) %>% 
+    dplyr::filter(gene %in% viz_gene) %>%
+    {fwrite(., paste0("./sub_neuron/03.",cls,"_ALL_path_DEG_Excitatory_SD_CT18vsCT6.csv"),col.names = T, row.names = F, sep = ",");.}  %>% 
+    dplyr::select(gene, avg_log2FC) %>%
+    rename(SD = avg_log2FC)
+  
+  final_deg_E <- merge(final_deg_ns,final_deg_sd, by = "gene") %>% dplyr::arrange(desc(NS))
+  final_deg_E[['Subtype']] = "Excitatory"  path_gen <- dot_input %>% dplyr::filter(Subtype == cls) %>% {.[['geneID']]} %>%
+    lapply(function(gn){return(str_split(string = gn,pattern = "/"))}) %>% unlist() %>% unique()
+  
+  temp_obj <- readRDS(paste0("./sub_neuron/01.",cls,"_ck.Rds"))
+  temp_obj@meta.data[['cellType']] <- paste0(cls,"_",(as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1))
+  temp_obj@meta.data[['cellType']] <- factor(temp_obj@meta.data[['cellType']],levels = c(
+    "NEU2_1",  "NEU2_2",  "NEU2_3",  "NEU2_4"
+  ))
+  Idents(temp_obj) <- 'cellType'
+  
+  ann.ids <- c(
+    'Excitatory', #cls 0
+    'Inhibitory', #1
+    'Excitatory', #2
+    'Excitatory'
+  )
+  
+  
+  temp_obj@meta.data[['seurat_clusters_2']] <- as.numeric(as.character(temp_obj@meta.data[['seurat_clusters']]))+1
+  Idents(temp_obj) <- 'seurat_clusters_2'
+  
+  Idents(temp_obj) <- 'seurat_clusters'
+  Idents(temp_obj) <- plyr::mapvalues(Idents(temp_obj), from = levels(Idents(temp_obj)), to = ann.ids)
+  temp_obj$cellType=Idents(temp_obj)
+  
+  DEG <- FindMarkers(temp_obj %>% subset(idents = 'Excitatory') %>%
+                       {Idents(.) <- 'sample_info';.}, ident.1 = "NS_CT18", ident.2 = "NS_CT6", verbose = FALSE, min.pct = 0,
+                     logfc.threshold = 0) %>% 
+    mutate(gene = rownames(.)) %>%dplyr::filter(gene %in% path_gen & p_val_adj < 0.05)
+
+  viz_gene <- DEG[['gene']]
+
+  fwrite(DEG %>% dplyr::filter(gene %in% viz_gene), paste0("./sub_neuron/03.",cls,"_ALL_path_DEG_Excitatory_NS_CT18vsCT6.csv"),col.names = T, row.names = F, sep = ",")
+  
+  
+  # final_deg_ns <- DEG %>% dplyr::filter(gene %in% viz_deg) %>% dplyr::select(gene, avg_log2FC) %>%
+  #   rename(NS = avg_log2FC)
+  final_deg_ns <- DEG %>% dplyr::select(gene, avg_log2FC) %>%
+    dplyr::filter(gene %in% viz_gene) %>%
+    rename(NS = avg_log2FC)
+  
+
+  final_deg_sd <- FindMarkers(temp_obj %>% subset(idents = 'Excitatory') %>%
+                                {Idents(.) <- 'sample_info';.}, ident.1 = "SD_CT18", ident.2 = "SD_CT6", verbose = FALSE, min.pct = 0,logfc.threshold = 0) %>% 
+    mutate(gene = rownames(.)) %>% 
+    dplyr::filter(gene %in% viz_gene) %>%
+    {fwrite(., paste0("./sub_neuron/03.",cls,"_ALL_path_DEG_Excitatory_SD_CT18vsCT6.csv"),col.names = T, row.names = F, sep = ",");.}  %>% 
+    dplyr::select(gene, avg_log2FC) %>%
+    rename(SD = avg_log2FC)
+  
+  final_deg_E <- merge(final_deg_ns,final_deg_sd, by = "gene") %>% dplyr::arrange(desc(NS))
+  final_deg_E[['Subtype']] = "Excitatory"

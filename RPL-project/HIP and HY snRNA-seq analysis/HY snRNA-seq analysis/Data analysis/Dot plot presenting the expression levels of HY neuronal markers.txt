@@ -1,0 +1,104 @@
+my_anno <-
+  ggplot(data.frame(x_ = factor(levels(sub_scobj$cellType), levels = levels(sub_scobj$cellType)), y_ = 1, celltype = factor(levels(sub_scobj$cellType), levels = levels(sub_scobj$cellType))#, 
+                    # face = c(rep("main", length(levels(obj@meta.data[["my_celltype"]]))),
+                    #          rep("sub",length(levels(obj@meta.data[[subdot_grp]]))))
+  ), 
+  aes(x_, y_, fill=celltype))+
+  geom_tile()+
+  scale_fill_manual(values = c("#a7e6ff","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0","#C80036"), name='Cell type')+
+  theme(panel.background = element_blank(),
+        panel.grid = element_blank(),
+        text=element_text(),
+        axis.text = element_blank(),
+        legend.position = "bottom",
+        axis.title =element_blank(),
+        panel.border = element_blank(),
+        strip.background = element_blank(),
+        strip.text = element_blank(),
+        legend.key.size = unit(0.25, 'cm'),
+        axis.ticks = element_blank())+
+  scale_y_continuous(expand = c(0,0))
+
+p_list2 <- p_list
+p_list2[['my_dot']] <- dot_p
+p_list2[['my_annn']] <- my_anno
+p_list2[['nrow']] = length(p_list2)
+p_list2[['heights']] = c(
+  rep(0.07,length(c("cell_num","nCount_RNA","nFeature_RNA"))),
+  1,0.025)
+final_dot <- do.call(deeptime::ggarrange2,p_list2)
+pdf("./sub_neuron/sub_neuron_cell_biomarker_Y_complex_dot_0807_v2.pdf", height = 7, width = 5)
+print(final_dot)
+dev.off()
+
+
+#===============================================================================
+# biomarker
+#===============================================================================
+neu_markers <- list(
+  #"Mammillary hypothalamus" =c('Neurog2', 'Neurod1', 'Bhlhe22','Dbx1', 'Msx3', 'Hes6','Lhx5', 'Tfap2a', 'Otx2','Neurog1', 'Zeb1'),
+  #"Mediobasal hypothalamus" = c('Msx3', 'Dbx1', 'Six6','Ascl1', 'Hes6', 'Zeb1','Gsx1', 'Foxd1', 'Neurog2','Neurod1'),
+  #"SMH"= c('Lmx1a', 'Barh11', 'Foxp2', 'Foxa1', 'Pou3f4', 'Lmx1b', 'Neurod2', 'Foxp1'),
+  #"ARC" = c('Six6', 'KIf6', 'Sox14', 'Tbx2', 'Bmyc', 'Isl2', 'Mafb', 'Atoh1'),
+  #"SuM" = "Nos1",
+  "SCN" = c('Ptn','Spock3'), #NEU3
+  "POA" = c('Gad2'), # NEU2 'Tac1','Gal','Moxd1','Gad1', 'Slc32a1','Slc17a6','Slc17a8'
+  "LH" = c('Hcrt','Pmch'), #NEU1
+  "PVN" = c('Sim1'), #NEU4
+  "AHN" = c('Slc6a3')#, #NEU5 'Mc4r',
+  #"DMH" = c('Prdm13','Vcan'),
+  #"PMN" = c('Epha8','Fign','Postn','Nts','Prkch','Lmx1a','Foxb1','Rxfp1','Pitx2','Nfia')
+  # "other" = c('Avp', 'Oxt', 'Sim1', 'Nr5a1', 'Tbx3','Vip','Fam122b','Cck','Cd24a','Hcrt','Pydn',
+  #             'Pmch','Fezf1','Adcyap1','Gda','Nrgn'
+  #)
+)
+genes2 <- c(
+  'Gm21984', 'Mag', 'Mamta', 'Sco1tc1', 'Musn1', 'Bmp4', 'Cspg4', 'Aft1', 'Col1a1', 'Coa1', 
+  'Lum', 'Ccdc153', 'Gfap', 'Adm', 'Rax', 'Tac2', 'Rgs16', 'Otx', 'Crym', 'Scrt1a2', 'Tubb3', 
+  'Cyp2f2', 'Tshb', 'Timeless', 'Cck'
+)
+
+func_neu_marker <- c(
+  'Gpr149', 'Ctd4', 'Fezf1', 'Tcf4', 'Lrr', 'Nphp4', 'Ins', 'Samd3', 'Rfx4', 'Mixed', 'Foxb1', 
+  'Pomc', 'Caprin2', 'GLU-1', 'Etnppl', 'Lgals3', 'Ependymal', 'Tanycytes', 'Ermn', 'Gpr17', 
+  'OPC', 'Endothelial', 'Mural', 'Dn', 'Trem119', 'PaxTuber', 'Nts', 'Lhx6', 'Lef1', 'Il1rapl2', 
+  'Lhx8', 'Hrh1', 'Tbx3', 'Cfl1', 'Mixed', 'Lhx1', 'Onecut2', 'Vipr2', 'Meis2', 'Sst', 'Agrp', 
+  'Satb2'
+)
+func_neu_marker2 <- list(
+  "GLU" = c('Tcf4', 'Caprin2'),
+  "GABA" = c('Lef1', 'Il1rapl2', 'Agrp')
+)
+neu_markers <- c('Avp', 'Oxt', 'Sim1', 'Nr5a1', 'Tbx3','Vip','Fam122b','Cck','Cd24a','Hcrt','Pydn',
+                 'Pmch','Fezf1','Adcyap1','Gda','Nrgn'
+                 )
+SCN_marker <- c(
+
+  'Ptn',
+
+  'Spock3'#,
+
+  
+) #NEU 3
+POA_marker = c(
+  # 'Bcl11b','Ccn1','Adora2a',
+  'Tac1',
+  # 'Zeb2','Igfbp4','Sln','Otx2','Dlx1','Lhx9',
+  'Gal'
+)#NEU 1
+my36colors <-c("#374E55FF", "#DF8F44FF", "#00A1D5FF", "#B24745FF", "#79AF97FF", "#6A6599FF" ,"#80796BFF",'#E64B35FF', '#4DBBD5FF',"#374E55FF", '#E59CC4', '#AB3282', '#23452F', '#BD956A', '#8C549C', '#585658', '#9FA3A8', '#E0D4CA', '#5F3D69', '#C5DEBA', '#58A4C3', '#E4C755', '#F7F398', '#AA9A59', '#E63863', '#E39A35', '#C1E6F3', '#6778AE', '#91D0BE', '#B53E2B', '#712820', '#DCC1DD', '#CCE0F5',  '#CCC9E6', '#625D9E', '#68A180', '#3A6963', '#968175')#颜色设置  
+
+p1 = MySeuratWrappers::VlnPlot(sub_scobj, features = unique(unlist(func_neu_marker2)), 
+                               stacked=T,pt.size=0,
+                               cols = my36colors,#
+                               direction = "horizontal", #
+                               x.lab = '', y.lab = '')+#
+  theme(axis.text.x = element_blank(),   
+        axis.ticks.x = element_blank())#
+p2 = DotPlot(sub_scobj, features = func_neu_marker2)+
+  scale_color_gradientn(colors = c("royalblue","orange","red"))
+
+pdf("./sub_neuron/sub_neu_function_marker_Hypo.pdf", height = 6, width = 6)
+cowplot::plot_grid(plotlist = list(p1,p2), ncol = 1)
+dev.off()
+

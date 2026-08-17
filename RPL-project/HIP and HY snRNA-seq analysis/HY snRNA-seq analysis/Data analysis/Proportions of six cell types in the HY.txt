@@ -1,0 +1,14 @@
+pie_input <- data.frame(celltype = SD.combined@meta.data[['cellType']],
+                        grp = SD.combined@meta.data[['group']])
+pie_input$celltype <- factor(pie_input$celltype, levels = levels(SD.combined@meta.data[['cellType']]))
+p2 <- ggstatsplot::ggpiestats(
+  data = pie_input,
+  x = celltype,
+  y = grp,
+  ggplot.component = ggplot2::scale_fill_manual(values = rev(c("#83B4FF","#9CDBA6","#F9D689","#973131","#FF6969","#FFD0D0"))),
+  legend.title = "Cell type"
+)
+pdf(paste0(Cls_Viz_Path,"/overall_prop.pdf"),width = 6.5, height = 6.5)
+print(p2)
+dev.off()
+fwrite(p2$data, paste0(Cls_Viz_Path,"/overall_prop_Y.csv"), col.names = T, row.names = F,quote = T)
